@@ -2,8 +2,15 @@ find_package(Drogon CONFIG REQUIRED)
 
 set(BACKEND_SOURCES
         src/main.cpp
+
+        src/config/DatabaseConfig.cpp
+        src/config/DatabaseConfig.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
+
+        src/controllers/DatabaseHealthController.cpp
+        src/controllers/DatabaseHealthController.h
 )
 
 add_executable(

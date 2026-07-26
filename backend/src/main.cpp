@@ -1,9 +1,60 @@
+#include "config/DatabaseConfig.h"
+
 #include <drogon/drogon.h>
+#include <json/json.h>
 
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <utility>
+
+namespace
+{
+Json::Value loadApplicationConfiguration(
+    const std::filesystem::path &configPath
+)
+{
+    std::ifstream configFile(
+        configPath,
+        std::ios::binary
+    );
+
+    if (!configFile.is_open())
+    {
+        throw std::runtime_error(
+            "Unable to open Drogon configuration file: " +
+            configPath.string()
+        );
+    }
+
+    Json::CharReaderBuilder readerBuilder;
+    readerBuilder["collectComments"] = false;
+
+    Json::Value configuration;
+    std::string parsingErrors;
+
+    if (!Json::parseFromStream(
+            readerBuilder,
+            configFile,
+            &configuration,
+            &parsingErrors
+        ))
+    {
+        throw std::runtime_error(
+            "Invalid Drogon configuration file: " +
+            parsingErrors
+        );
+    }
+
+    configuration["db_clients"] =
+        healthcare::config::buildDatabaseClientsConfig();
+
+    return configuration;
+}
+}
 
 int main(int, char *argv[])
 {
@@ -23,8 +74,11 @@ int main(int, char *argv[])
             );
         }
 
+        auto configuration =
+            loadApplicationConfiguration(configPath);
+
         drogon::app()
-            .loadConfigFile(configPath.string())
+            .loadConfigJson(std::move(configuration))
             .run();
     }
     catch (const std::exception &exception)
