@@ -1,0 +1,17 @@
+{
+  "listeners": [
+    {
+      "address": "0.0.0.0",
+      "port": 8000,
+      "https": false
+    }
+  ],
+  "app": {
+    "number_of_threads": 1,
+    "enable_session": false,
+    "document_root": "./",
+    "upload_path": "uploads",
+    "client_max_body_size": "10M",
+    "client_max_memory_body_size": "1M"
+  }
+}

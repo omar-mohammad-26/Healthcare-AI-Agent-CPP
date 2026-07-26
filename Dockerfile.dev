@@ -1,0 +1,9 @@
+FROM drogonframework/drogon:latest
+
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gdb \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
