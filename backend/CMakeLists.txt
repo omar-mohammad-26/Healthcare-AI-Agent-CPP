@@ -9,6 +9,7 @@ set(BACKEND_SOURCES
         src/models/Department.h
         src/models/Doctor.h
         src/models/Patient.h
+        src/models/Appointment.h
 
         src/repositories/DepartmentRepository.cpp
         src/repositories/DepartmentRepository.h
@@ -16,6 +17,8 @@ set(BACKEND_SOURCES
         src/repositories/DoctorRepository.h
         src/repositories/PatientRepository.cpp
         src/repositories/PatientRepository.h
+        src/repositories/AppointmentRepository.cpp
+        src/repositories/AppointmentRepository.h
 
         src/services/DepartmentService.cpp
         src/services/DepartmentService.h
@@ -23,6 +26,8 @@ set(BACKEND_SOURCES
         src/services/DoctorService.h
         src/services/PatientService.cpp
         src/services/PatientService.h
+        src/services/AppointmentService.cpp
+        src/services/AppointmentService.h
 
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
@@ -38,6 +43,9 @@ set(BACKEND_SOURCES
 
         src/controllers/PatientController.cpp
         src/controllers/PatientController.h
+
+        src/controllers/AppointmentController.cpp
+        src/controllers/AppointmentController.h
 )
 
 add_executable(
