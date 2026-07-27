@@ -1,0 +1,113 @@
+#include "repositories/PatientRepository.h"
+
+#include <drogon/orm/Exception.h>
+#include <drogon/orm/Result.h>
+
+#include <utility>
+
+namespace healthcare::repositories
+{
+PatientRepository::PatientRepository(
+    drogon::orm::DbClientPtr databaseClient
+)
+    : databaseClient_(std::move(databaseClient))
+{
+}
+
+void PatientRepository::findAll(
+    std::string searchTerm,
+    SuccessCallback successCallback,
+    ErrorCallback errorCallback
+) const
+{
+    if (!databaseClient_)
+    {
+        errorCallback(
+            "The PostgreSQL client is not available."
+        );
+        return;
+    }
+
+    databaseClient_->execSqlAsync(
+        R"(
+            SELECT
+                id,
+                full_name,
+                phone,
+                age,
+                gender,
+                medical_history,
+                created_at
+            FROM patients
+            WHERE
+                CAST($1 AS TEXT) = ''
+                OR full_name ILIKE
+                    '%' || CAST($1 AS TEXT) || '%'
+                OR phone ILIKE
+                    '%' || CAST($1 AS TEXT) || '%'
+            ORDER BY full_name ASC
+        )",
+        [
+            successCallback =
+                std::move(successCallback)
+        ](
+            const drogon::orm::Result &result
+        ) mutable
+        {
+            PatientList patients;
+            patients.reserve(result.size());
+
+            for (const auto &row : result)
+            {
+                healthcare::models::Patient patient;
+
+                patient.id =
+                    row["id"].as<int>();
+
+                patient.fullName =
+                    row["full_name"].as<std::string>();
+
+                patient.phone =
+                    row["phone"].as<std::string>();
+
+                patient.age =
+                    row["age"].as<int>();
+
+                patient.gender =
+                    row["gender"].as<std::string>();
+
+                if (!row["medical_history"].isNull())
+                {
+                    patient.medicalHistory =
+                        row["medical_history"]
+                            .as<std::string>();
+                }
+
+                patient.createdAt =
+                    row["created_at"].as<std::string>();
+
+                patients.push_back(
+                    std::move(patient)
+                );
+            }
+
+            successCallback(
+                std::move(patients)
+            );
+        },
+        [
+            errorCallback =
+                std::move(errorCallback)
+        ](
+            const drogon::orm::DrogonDbException
+                &exception
+        ) mutable
+        {
+            errorCallback(
+                exception.base().what()
+            );
+        },
+        std::move(searchTerm)
+    );
+}
+}
