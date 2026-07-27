@@ -6,11 +6,22 @@ set(BACKEND_SOURCES
         src/config/DatabaseConfig.cpp
         src/config/DatabaseConfig.h
 
+        src/models/Department.h
+
+        src/repositories/DepartmentRepository.cpp
+        src/repositories/DepartmentRepository.h
+
+        src/services/DepartmentService.cpp
+        src/services/DepartmentService.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
 
         src/controllers/DatabaseHealthController.cpp
         src/controllers/DatabaseHealthController.h
+
+        src/controllers/DepartmentController.cpp
+        src/controllers/DepartmentController.h
 )
 
 add_executable(
