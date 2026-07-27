@@ -7,12 +7,17 @@ set(BACKEND_SOURCES
         src/config/DatabaseConfig.h
 
         src/models/Department.h
+        src/models/Doctor.h
 
         src/repositories/DepartmentRepository.cpp
         src/repositories/DepartmentRepository.h
+        src/repositories/DoctorRepository.cpp
+        src/repositories/DoctorRepository.h
 
         src/services/DepartmentService.cpp
         src/services/DepartmentService.h
+        src/services/DoctorService.cpp
+        src/services/DoctorService.h
 
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
@@ -22,6 +27,9 @@ set(BACKEND_SOURCES
 
         src/controllers/DepartmentController.cpp
         src/controllers/DepartmentController.h
+
+        src/controllers/DoctorController.cpp
+        src/controllers/DoctorController.h
 )
 
 add_executable(
