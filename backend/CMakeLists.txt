@@ -34,6 +34,13 @@ set(BACKEND_SOURCES
         src/services/TreatmentService.cpp
         src/services/TreatmentService.h
 
+        src/agent/AgentTool.h
+        src/agent/ToolRegistry.cpp
+        src/agent/ToolRegistry.h
+
+        src/agent/tools/SearchPatientTool.cpp
+        src/agent/tools/SearchPatientTool.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
 
@@ -54,6 +61,9 @@ set(BACKEND_SOURCES
 
         src/controllers/TreatmentController.cpp
         src/controllers/TreatmentController.h
+
+        src/controllers/AgentToolController.cpp
+        src/controllers/AgentToolController.h
 )
 
 add_executable(
