@@ -42,4 +42,19 @@ namespace healthcare::models
         CreateAppointmentOutcome outcome;
         std::optional<Appointment> appointment;
     };
+
+    enum class CancelAppointmentOutcome
+    {
+        Cancelled,
+        NotFound,
+        AlreadyCancelled,
+        Completed,
+        Conflict
+    };
+
+    struct CancelAppointmentResult
+    {
+        CancelAppointmentOutcome outcome;
+        std::optional<Appointment> appointment;
+    };
 }

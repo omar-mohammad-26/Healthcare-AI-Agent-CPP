@@ -145,8 +145,7 @@ void AppointmentRepository::findAll(
             errorCallback =
                 std::move(errorCallback)
         ](
-            const drogon::orm::DrogonDbException
-                &exception
+            const drogon::orm::DrogonDbException &exception
         ) mutable
         {
             errorCallback(
@@ -337,8 +336,7 @@ void AppointmentRepository::create(
             errorCallback =
                 std::move(errorCallback)
         ](
-            const drogon::orm::DrogonDbException
-                &exception
+            const drogon::orm::DrogonDbException &exception
         ) mutable
         {
             errorCallback(
@@ -348,6 +346,172 @@ void AppointmentRepository::create(
         input.patientId,
         input.doctorId,
         std::move(input.appointmentDatetime)
+    );
+}
+
+void AppointmentRepository::cancel(
+    const int appointmentId,
+    CancelSuccessCallback successCallback,
+    ErrorCallback errorCallback
+) const
+{
+    if (!databaseClient_)
+    {
+        errorCallback(
+            "The PostgreSQL client is not available."
+        );
+
+        return;
+    }
+
+    databaseClient_->execSqlAsync(
+        R"(
+            WITH target AS
+            (
+                SELECT
+                    id,
+                    status
+                FROM appointments
+                WHERE id = CAST($1 AS INTEGER)
+            ),
+            updated AS
+            (
+                UPDATE appointments
+                SET status = 'cancelled'
+                WHERE id = CAST($1 AS INTEGER)
+                  AND status = 'scheduled'
+                RETURNING
+                    id,
+                    patient_id,
+                    doctor_id,
+                    appointment_datetime,
+                    status,
+                    created_at
+            )
+            SELECT
+                EXISTS
+                (
+                    SELECT 1
+                    FROM target
+                ) AS appointment_exists,
+
+                COALESCE
+                (
+                    (
+                        SELECT status
+                        FROM target
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS previous_status,
+
+                updated.id,
+                updated.patient_id,
+                patient.full_name AS patient_name,
+
+                updated.doctor_id,
+                doctor.full_name AS doctor_name,
+                doctor.specialty AS doctor_specialty,
+
+                updated.appointment_datetime,
+                updated.status,
+                updated.created_at
+            FROM
+                (
+                    SELECT 1
+                ) AS anchor
+            LEFT JOIN updated
+                ON TRUE
+            LEFT JOIN patients AS patient
+                ON patient.id = updated.patient_id
+            LEFT JOIN doctors AS doctor
+                ON doctor.id = updated.doctor_id
+        )",
+        [
+            successCallback =
+                std::move(successCallback)
+        ](
+            const drogon::orm::Result &result
+        ) mutable
+        {
+            const auto row = result[0];
+
+            if (!row["appointment_exists"].as<bool>())
+            {
+                successCallback(
+                    {
+                        healthcare::models::
+                            CancelAppointmentOutcome::NotFound,
+                        std::nullopt
+                    }
+                );
+
+                return;
+            }
+
+            if (!row["id"].isNull())
+            {
+                successCallback(
+                    {
+                        healthcare::models::
+                            CancelAppointmentOutcome::Cancelled,
+                        mapAppointment(row)
+                    }
+                );
+
+                return;
+            }
+
+            const std::string previousStatus =
+                row["previous_status"].as<std::string>();
+
+            if (previousStatus == "cancelled")
+            {
+                successCallback(
+                    {
+                        healthcare::models::
+                            CancelAppointmentOutcome::
+                                AlreadyCancelled,
+                        std::nullopt
+                    }
+                );
+
+                return;
+            }
+
+            if (previousStatus == "completed")
+            {
+                successCallback(
+                    {
+                        healthcare::models::
+                            CancelAppointmentOutcome::Completed,
+                        std::nullopt
+                    }
+                );
+
+                return;
+            }
+
+            successCallback(
+                {
+                    healthcare::models::
+                        CancelAppointmentOutcome::Conflict,
+                    std::nullopt
+                }
+            );
+        },
+        [
+            errorCallback =
+                std::move(errorCallback)
+        ](
+            const drogon::orm::DrogonDbException &exception
+        ) mutable
+        {
+            errorCallback(
+                exception.base().what()
+            );
+        },
+        appointmentId
     );
 }
 }

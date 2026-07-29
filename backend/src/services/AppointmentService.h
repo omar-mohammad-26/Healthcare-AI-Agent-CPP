@@ -35,7 +35,7 @@ namespace healthcare::services
         using ErrorCallback =
             std::function<void(std::string)>;
 
-        using CreateErrorCallback =
+        using MutationErrorCallback =
             std::function<void(AppointmentServiceError)>;
 
         explicit AppointmentService(
@@ -53,7 +53,13 @@ namespace healthcare::services
         void createAppointment(
             healthcare::models::CreateAppointmentInput input,
             SuccessCallback successCallback,
-            CreateErrorCallback errorCallback
+            MutationErrorCallback errorCallback
+        ) const;
+
+        void cancelAppointment(
+            int appointmentId,
+            SuccessCallback successCallback,
+            MutationErrorCallback errorCallback
         ) const;
 
     private:

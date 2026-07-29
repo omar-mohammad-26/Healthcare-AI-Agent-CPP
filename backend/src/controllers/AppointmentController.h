@@ -3,6 +3,7 @@
 #include <drogon/HttpController.h>
 
 #include <functional>
+#include <string>
 
 class AppointmentController final
     : public drogon::HttpController<
@@ -24,6 +25,12 @@ public:
         drogon::Post
     );
 
+    ADD_METHOD_TO(
+        AppointmentController::cancelAppointment,
+        "/appointments/{1}/cancel",
+        drogon::Post
+    );
+
     METHOD_LIST_END
 
     void listAppointments(
@@ -38,5 +45,13 @@ public:
         std::function<
             void(const drogon::HttpResponsePtr &)
         > &&callback
+    ) const;
+
+    void cancelAppointment(
+        const drogon::HttpRequestPtr &request,
+        std::function<
+            void(const drogon::HttpResponsePtr &)
+        > &&callback,
+        std::string appointmentId
     ) const;
 };

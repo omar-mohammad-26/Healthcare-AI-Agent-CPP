@@ -28,6 +28,11 @@ namespace healthcare::repositories
                 void(healthcare::models::CreateAppointmentResult)
             >;
 
+        using CancelSuccessCallback =
+            std::function<
+                void(healthcare::models::CancelAppointmentResult)
+            >;
+
         explicit AppointmentRepository(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -43,6 +48,12 @@ namespace healthcare::repositories
         void create(
             healthcare::models::CreateAppointmentInput input,
             CreateSuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
+        void cancel(
+            int appointmentId,
+            CancelSuccessCallback successCallback,
             ErrorCallback errorCallback
         ) const;
 

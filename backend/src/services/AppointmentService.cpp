@@ -281,8 +281,7 @@ void AppointmentService::listAppointments(
 void AppointmentService::createAppointment(
     healthcare::models::CreateAppointmentInput input,
     SuccessCallback successCallback,
-    CreateErrorCallback errorCallback
-) const
+    MutationErrorCallback errorCallback) const
 {
     if (input.patientId <= 0)
     {
@@ -331,7 +330,7 @@ void AppointmentService::createAppointment(
         );
 
     auto sharedErrorCallback =
-        std::make_shared<CreateErrorCallback>(
+        std::make_shared<MutationErrorCallback >(
             std::move(errorCallback)
         );
 
@@ -413,6 +412,133 @@ void AppointmentService::createAppointment(
                                 Conflict,
                             "appointment_datetime",
                             "The doctor or patient already has an active appointment at this time."
+                        }
+                    );
+                    return;
+            }
+        },
+        [
+            sharedErrorCallback
+        ](
+            std::string errorMessage
+        )
+        {
+            (*sharedErrorCallback)(
+                {
+                    AppointmentServiceErrorType::Database,
+                    "",
+                    std::move(errorMessage)
+                }
+            );
+        }
+    );
+}
+    void AppointmentService::cancelAppointment(
+    const int appointmentId,
+    SuccessCallback successCallback,
+    MutationErrorCallback errorCallback
+) const
+{
+    if (appointmentId <= 0)
+    {
+        errorCallback(
+            {
+                AppointmentServiceErrorType::Validation,
+                "appointment_id",
+                "Appointment ID must be a positive integer."
+            }
+        );
+
+        return;
+    }
+
+    auto sharedSuccessCallback =
+        std::make_shared<SuccessCallback>(
+            std::move(successCallback)
+        );
+
+    auto sharedErrorCallback =
+        std::make_shared<MutationErrorCallback>(
+            std::move(errorCallback)
+        );
+
+    appointmentRepository_.cancel(
+        appointmentId,
+        [
+            sharedSuccessCallback,
+            sharedErrorCallback
+        ](
+            healthcare::models::
+                CancelAppointmentResult result
+        )
+        {
+            switch (result.outcome)
+            {
+                case healthcare::models::
+                    CancelAppointmentOutcome::Cancelled:
+                {
+                    Json::Value responseBody;
+
+                    responseBody["status"] =
+                        "cancelled";
+
+                    responseBody["data"] =
+                        appointmentToJson(
+                            result.appointment.value()
+                        );
+
+                    (*sharedSuccessCallback)(
+                        std::move(responseBody)
+                    );
+
+                    return;
+                }
+
+                case healthcare::models::
+                    CancelAppointmentOutcome::NotFound:
+                    (*sharedErrorCallback)(
+                        {
+                            AppointmentServiceErrorType::
+                                NotFound,
+                            "appointment_id",
+                            "The requested appointment does not exist."
+                        }
+                    );
+                    return;
+
+                case healthcare::models::
+                    CancelAppointmentOutcome::
+                        AlreadyCancelled:
+                    (*sharedErrorCallback)(
+                        {
+                            AppointmentServiceErrorType::
+                                Conflict,
+                            "appointment_id",
+                            "The appointment is already cancelled."
+                        }
+                    );
+                    return;
+
+                case healthcare::models::
+                    CancelAppointmentOutcome::Completed:
+                    (*sharedErrorCallback)(
+                        {
+                            AppointmentServiceErrorType::
+                                Conflict,
+                            "appointment_id",
+                            "A completed appointment cannot be cancelled."
+                        }
+                    );
+                    return;
+
+                case healthcare::models::
+                    CancelAppointmentOutcome::Conflict:
+                    (*sharedErrorCallback)(
+                        {
+                            AppointmentServiceErrorType::
+                                Conflict,
+                            "appointment_id",
+                            "The appointment could not be cancelled because its status changed."
                         }
                     );
                     return;
