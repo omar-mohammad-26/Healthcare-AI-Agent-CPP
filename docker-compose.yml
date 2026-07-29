@@ -55,6 +55,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthcare_pass}
       POSTGRES_CONNECTIONS: 2
 
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+      GEMINI_MODEL: "${GEMINI_MODEL:-gemini-3.5-flash}"
+      GEMINI_BASE_URL: "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com}"
+
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
 

@@ -6,6 +6,12 @@ set(BACKEND_SOURCES
         src/config/DatabaseConfig.cpp
         src/config/DatabaseConfig.h
 
+        src/config/GeminiConfig.cpp
+        src/config/GeminiConfig.h
+
+        src/ai/GeminiClient.cpp
+        src/ai/GeminiClient.h
+
         src/models/Department.h
         src/models/Doctor.h
         src/models/Patient.h
@@ -67,6 +73,9 @@ set(BACKEND_SOURCES
 
         src/controllers/DatabaseHealthController.cpp
         src/controllers/DatabaseHealthController.h
+
+        src/controllers/GeminiController.cpp
+        src/controllers/GeminiController.h
 
         src/controllers/DepartmentController.cpp
         src/controllers/DepartmentController.h
