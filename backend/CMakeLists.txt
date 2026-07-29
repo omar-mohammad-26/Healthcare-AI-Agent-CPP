@@ -56,6 +56,9 @@ set(BACKEND_SOURCES
         src/agent/tools/PatientHistoryTool.cpp
         src/agent/tools/PatientHistoryTool.h
 
+        src/agent/tools/AddTreatmentTool.cpp
+        src/agent/tools/AddTreatmentTool.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
 
