@@ -31,7 +31,7 @@ std::string extractGeminiText(
     if (!responseBody.isObject() ||
         !responseBody.isMember("candidates") ||
         !responseBody["candidates"].isArray() ||
-        responseBody["candidates"].size() == 0)
+        responseBody["candidates"].empty())
     {
         return "";
     }
@@ -106,6 +106,93 @@ std::string extractApiErrorMessage(
     return
         "Gemini returned an API error without a message.";
 }
+
+Json::Value createUserContents(
+    const std::string &prompt
+)
+{
+    Json::Value textPart;
+
+    textPart["text"] =
+        prompt;
+
+    Json::Value parts(
+        Json::arrayValue
+    );
+
+    parts.append(
+        std::move(textPart)
+    );
+
+    Json::Value userContent;
+
+    userContent["role"] =
+        "user";
+
+    userContent["parts"] =
+        std::move(parts);
+
+    Json::Value contents(
+        Json::arrayValue
+    );
+
+    contents.append(
+        std::move(userContent)
+    );
+
+    return contents;
+}
+
+Json::Value createGenerationConfig()
+{
+    Json::Value generationConfig;
+
+    generationConfig["temperature"] =
+        0.0;
+
+    generationConfig["maxOutputTokens"] =
+        512;
+
+    return generationConfig;
+}
+
+drogon::HttpRequestPtr createGeminiRequest(
+    const healthcare::config::GeminiConfig &configuration,
+    const Json::Value &requestBody
+)
+{
+    auto request =
+        drogon::HttpRequest::newHttpRequest();
+
+    request->setMethod(
+        drogon::Post
+    );
+
+    request->setPathEncode(
+        false
+    );
+
+    request->setPath(
+        "/v1beta/models/" +
+        configuration.model +
+        ":generateContent"
+    );
+
+    request->setContentTypeCode(
+        drogon::CT_APPLICATION_JSON
+    );
+
+    request->addHeader(
+        "x-goog-api-key",
+        configuration.apiKey
+    );
+
+    request->setBody(
+        jsonToString(requestBody)
+    );
+
+    return request;
+}
 }
 
 namespace healthcare::ai
@@ -161,50 +248,13 @@ void GeminiClient::generateText(
         return;
     }
 
-    Json::Value textPart;
-
-    textPart["text"] =
-        prompt;
-
-    Json::Value parts(
-        Json::arrayValue
-    );
-
-    parts.append(
-        std::move(textPart)
-    );
-
-    Json::Value userContent;
-
-    userContent["role"] =
-        "user";
-
-    userContent["parts"] =
-        std::move(parts);
-
-    Json::Value contents(
-        Json::arrayValue
-    );
-
-    contents.append(
-        std::move(userContent)
-    );
-
-    Json::Value generationConfig;
-
-    generationConfig["temperature"] =
-        0.0;
-
-    generationConfig["maxOutputTokens"] =
-        256;
-
     Json::Value requestBody;
 
     requestBody["contents"] =
-        std::move(contents);
+        createUserContents(prompt);
 
     requestBody["generationConfig"] =
-        std::move(generationConfig);
+        createGenerationConfig();
 
     const auto httpClient =
         drogon::HttpClient::newHttpClient(
@@ -224,35 +274,11 @@ void GeminiClient::generateText(
         return;
     }
 
-    auto request =
-        drogon::HttpRequest::newHttpRequest();
-
-    request->setMethod(
-        drogon::Post
-    );
-
-    request->setPathEncode(
-        false
-    );
-
-    request->setPath(
-        "/v1beta/models/" +
-        configuration_.model +
-        ":generateContent"
-    );
-
-    request->setContentTypeCode(
-        drogon::CT_APPLICATION_JSON
-    );
-
-    request->addHeader(
-        "x-goog-api-key",
-        configuration_.apiKey
-    );
-
-    request->setBody(
-        jsonToString(requestBody)
-    );
+    const auto request =
+        createGeminiRequest(
+            configuration_,
+            requestBody
+        );
 
     httpClient->sendRequest(
         request,
@@ -312,8 +338,7 @@ void GeminiClient::generateText(
             {
                 errorCallback(
                     {
-                        GeminiErrorType::
-                            InvalidResponse,
+                        GeminiErrorType::InvalidResponse,
                         statusCode,
                         "Gemini returned a response that was not valid JSON."
                     }
@@ -331,8 +356,7 @@ void GeminiClient::generateText(
             {
                 errorCallback(
                     {
-                        GeminiErrorType::
-                            InvalidResponse,
+                        GeminiErrorType::InvalidResponse,
                         statusCode,
                         "Gemini returned no generated text."
                     }
@@ -343,6 +367,182 @@ void GeminiClient::generateText(
 
             successCallback(
                 generatedText
+            );
+        }
+    );
+}
+
+void GeminiClient::generateWithTools(
+    const std::string &prompt,
+    const Json::Value &tools,
+    StructuredSuccessCallback successCallback,
+    ErrorCallback errorCallback
+) const
+{
+    if (!configuration_.isConfigured())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "GEMINI_API_KEY is not configured."
+            }
+        );
+
+        return;
+    }
+
+    if (prompt.empty())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "The Gemini prompt must not be empty."
+            }
+        );
+
+        return;
+    }
+
+    if (!tools.isArray() ||
+        tools.empty())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "Gemini tools must be a non-empty JSON array."
+            }
+        );
+
+        return;
+    }
+
+    Json::Value requestBody;
+
+    requestBody["contents"] =
+        createUserContents(prompt);
+
+    requestBody["tools"] =
+        tools;
+
+    requestBody["generationConfig"] =
+        createGenerationConfig();
+
+    const auto httpClient =
+        drogon::HttpClient::newHttpClient(
+            configuration_.baseUrl
+        );
+
+    if (!httpClient)
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Network,
+                0,
+                "Unable to create the Gemini HTTP client."
+            }
+        );
+
+        return;
+    }
+
+    const auto request =
+        createGeminiRequest(
+            configuration_,
+            requestBody
+        );
+
+    httpClient->sendRequest(
+        request,
+        [
+            httpClient,
+            successCallback =
+                std::move(successCallback),
+            errorCallback =
+                std::move(errorCallback)
+        ](
+            const drogon::ReqResult requestResult,
+            const drogon::HttpResponsePtr &response
+        ) mutable
+        {
+            static_cast<void>(httpClient);
+
+            if (requestResult !=
+                    drogon::ReqResult::Ok ||
+                !response)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::Network,
+                        0,
+                        "Unable to connect to the Gemini API."
+                    }
+                );
+
+                return;
+            }
+
+            const int statusCode =
+                static_cast<int>(
+                    response->getStatusCode()
+                );
+
+            if (statusCode < 200 ||
+                statusCode >= 300)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::Api,
+                        statusCode,
+                        extractApiErrorMessage(
+                            response
+                        )
+                    }
+                );
+
+                return;
+            }
+
+            const auto responseJson =
+                response->getJsonObject();
+
+            if (!responseJson)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::InvalidResponse,
+                        statusCode,
+                        "Gemini returned a response that was not valid JSON."
+                    }
+                );
+
+                return;
+            }
+
+            auto parsedResponse =
+                GeminiResponseParser::parse(
+                    *responseJson
+                );
+
+            if (!parsedResponse.has_value())
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::InvalidResponse,
+                        statusCode,
+                        "Gemini returned neither text nor a valid function call."
+                    }
+                );
+
+                return;
+            }
+
+            successCallback(
+                std::move(
+                    parsedResponse.value()
+                )
             );
         }
     );
