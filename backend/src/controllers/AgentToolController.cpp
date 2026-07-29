@@ -1,6 +1,7 @@
 #include "controllers/AgentToolController.h"
 
 #include "agent/ToolRegistry.h"
+#include "agent/tools/AvailableSlotsTool.h"
 #include "agent/tools/SearchPatientTool.h"
 
 #include <drogon/drogon.h>
@@ -36,6 +37,15 @@ std::shared_ptr<
         std::make_shared<
             healthcare::agent::tools::
                 SearchPatientTool
+        >(
+            databaseClient
+        )
+    );
+
+    toolRegistry->registerTool(
+        std::make_shared<
+            healthcare::agent::tools::
+                AvailableSlotsTool
         >(
             databaseClient
         )

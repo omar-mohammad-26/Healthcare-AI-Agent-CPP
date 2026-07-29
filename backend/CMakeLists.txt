@@ -41,6 +41,9 @@ set(BACKEND_SOURCES
         src/agent/tools/SearchPatientTool.cpp
         src/agent/tools/SearchPatientTool.h
 
+        src/agent/tools/AvailableSlotsTool.cpp
+        src/agent/tools/AvailableSlotsTool.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
 
