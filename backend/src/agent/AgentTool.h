@@ -11,6 +11,7 @@ namespace healthcare::agent
     {
         Validation,
         NotFound,
+        Conflict,
         Database
     };
 

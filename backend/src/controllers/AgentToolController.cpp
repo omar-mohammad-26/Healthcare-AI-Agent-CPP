@@ -2,6 +2,7 @@
 
 #include "agent/ToolRegistry.h"
 #include "agent/tools/AvailableSlotsTool.h"
+#include "agent/tools/BookAppointmentTool.h"
 #include "agent/tools/SearchPatientTool.h"
 
 #include <drogon/drogon.h>
@@ -46,6 +47,15 @@ std::shared_ptr<
         std::make_shared<
             healthcare::agent::tools::
                 AvailableSlotsTool
+        >(
+            databaseClient
+        )
+    );
+
+    toolRegistry->registerTool(
+        std::make_shared<
+            healthcare::agent::tools::
+                BookAppointmentTool
         >(
             databaseClient
         )
@@ -241,10 +251,28 @@ void AgentToolController::executeTool(
 
                 case healthcare::agent::
                     AgentToolErrorType::NotFound:
+                {
+                    const std::string errorCode =
+                        error.field == "tool_name"
+                            ? "agent_tool_not_found"
+                            : "agent_tool_resource_not_found";
+
                     sendError(
                         sharedCallback,
                         drogon::k404NotFound,
-                        "agent_tool_not_found",
+                        errorCode,
+                        error.message,
+                        error.field
+                    );
+                    return;
+                }
+
+                case healthcare::agent::
+                    AgentToolErrorType::Conflict:
+                    sendError(
+                        sharedCallback,
+                        drogon::k409Conflict,
+                        "agent_tool_conflict",
                         error.message,
                         error.field
                     );
