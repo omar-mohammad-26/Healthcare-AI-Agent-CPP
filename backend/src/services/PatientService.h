@@ -10,6 +10,20 @@
 
 namespace healthcare::services
 {
+    enum class PatientServiceErrorType
+    {
+        Validation,
+        Conflict,
+        Database
+    };
+
+    struct PatientServiceError
+    {
+        PatientServiceErrorType type;
+        std::string field;
+        std::string message;
+    };
+
     class PatientService final
     {
     public:
@@ -19,6 +33,9 @@ namespace healthcare::services
         using ErrorCallback =
             std::function<void(std::string)>;
 
+        using CreateErrorCallback =
+            std::function<void(PatientServiceError)>;
+
         explicit PatientService(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -27,6 +44,12 @@ namespace healthcare::services
             std::string searchTerm,
             SuccessCallback successCallback,
             ErrorCallback errorCallback
+        ) const;
+
+        void createPatient(
+            healthcare::models::CreatePatientInput input,
+            SuccessCallback successCallback,
+            CreateErrorCallback errorCallback
         ) const;
 
     private:

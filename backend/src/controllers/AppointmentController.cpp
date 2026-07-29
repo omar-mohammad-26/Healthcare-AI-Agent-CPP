@@ -78,9 +78,9 @@ bool parseOptionalPositiveInteger(
             );
 
         if (parsedCharacters != value.size() ||
-            number <= 0 ||
-            number >
-                std::numeric_limits<int>::max())
+    number <= 0 ||
+    number >
+        (std::numeric_limits<int>::max)())
         {
             return false;
         }

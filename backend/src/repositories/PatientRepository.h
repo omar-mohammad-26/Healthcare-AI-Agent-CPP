@@ -5,6 +5,7 @@
 #include <drogon/orm/DbClient.h>
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,15 @@ namespace healthcare::repositories
         using ErrorCallback =
             std::function<void(std::string)>;
 
+        using CreateSuccessCallback =
+            std::function<
+                void(
+                    std::optional<
+                        healthcare::models::Patient
+                    >
+                )
+            >;
+
         explicit PatientRepository(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -29,6 +39,12 @@ namespace healthcare::repositories
         void findAll(
             std::string searchTerm,
             SuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
+        void create(
+            healthcare::models::CreatePatientInput input,
+            CreateSuccessCallback successCallback,
             ErrorCallback errorCallback
         ) const;
 
