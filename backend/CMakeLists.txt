@@ -47,6 +47,9 @@ set(BACKEND_SOURCES
         src/agent/tools/BookAppointmentTool.cpp
         src/agent/tools/BookAppointmentTool.h
 
+        src/agent/tools/CancelAppointmentTool.cpp
+        src/agent/tools/CancelAppointmentTool.h
+
         src/controllers/HealthController.cpp
         src/controllers/HealthController.h
 
