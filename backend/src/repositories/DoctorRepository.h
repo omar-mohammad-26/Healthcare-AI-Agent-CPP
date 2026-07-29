@@ -22,12 +22,24 @@ namespace healthcare::repositories
         using ErrorCallback =
             std::function<void(std::string)>;
 
+        using ScheduleSuccessCallback =
+            std::function<
+                void(healthcare::models::DoctorScheduleResult)
+            >;
+
         explicit DoctorRepository(
             drogon::orm::DbClientPtr databaseClient
         );
 
         void findAll(
             SuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
+        void findSchedule(
+            int doctorId,
+            std::string date,
+            ScheduleSuccessCallback successCallback,
             ErrorCallback errorCallback
         ) const;
 

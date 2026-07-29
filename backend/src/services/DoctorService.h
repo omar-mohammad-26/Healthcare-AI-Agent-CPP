@@ -10,6 +10,18 @@
 
 namespace healthcare::services
 {
+    enum class DoctorScheduleErrorType
+    {
+        NotFound,
+        Database
+    };
+
+    struct DoctorScheduleError
+    {
+        DoctorScheduleErrorType type;
+        std::string message;
+    };
+
     class DoctorService final
     {
     public:
@@ -19,6 +31,9 @@ namespace healthcare::services
         using ErrorCallback =
             std::function<void(std::string)>;
 
+        using ScheduleErrorCallback =
+            std::function<void(DoctorScheduleError)>;
+
         explicit DoctorService(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -26,6 +41,13 @@ namespace healthcare::services
         void listDoctors(
             SuccessCallback successCallback,
             ErrorCallback errorCallback
+        ) const;
+
+        void getDoctorSchedule(
+            int doctorId,
+            std::string date,
+            SuccessCallback successCallback,
+            ScheduleErrorCallback errorCallback
         ) const;
 
     private:
