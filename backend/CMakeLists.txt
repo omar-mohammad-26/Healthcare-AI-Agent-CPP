@@ -43,6 +43,8 @@ set(BACKEND_SOURCES
         src/agent/AgentTool.h
         src/agent/ToolRegistry.cpp
         src/agent/ToolRegistry.h
+        src/agent/ToolRegistryFactory.cpp
+        src/agent/ToolRegistryFactory.h
 
         src/agent/tools/SearchPatientTool.cpp
         src/agent/tools/SearchPatientTool.h

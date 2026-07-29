@@ -1,6 +1,8 @@
 #pragma once
 
 #include <drogon/HttpController.h>
+#include <drogon/HttpRequest.h>
+#include <drogon/HttpResponse.h>
 
 #include <functional>
 #include <string>
@@ -20,6 +22,12 @@ public:
     );
 
     ADD_METHOD_TO(
+        AgentToolController::listGeminiTools,
+        "/agent/gemini-tools",
+        drogon::Get
+    );
+
+    ADD_METHOD_TO(
         AgentToolController::executeTool,
         "/agent/tools/{1}",
         drogon::Post
@@ -28,6 +36,13 @@ public:
     METHOD_LIST_END
 
     void listTools(
+        const drogon::HttpRequestPtr &request,
+        std::function<
+            void(const drogon::HttpResponsePtr &)
+        > &&callback
+    ) const;
+
+    void listGeminiTools(
         const drogon::HttpRequestPtr &request,
         std::function<
             void(const drogon::HttpResponsePtr &)

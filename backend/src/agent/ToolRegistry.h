@@ -20,6 +20,9 @@ namespace healthcare::agent
         [[nodiscard]]
         Json::Value definitions() const;
 
+        [[nodiscard]]
+        Json::Value geminiTools() const;
+
         void execute(
             const std::string &toolName,
             const Json::Value &arguments,

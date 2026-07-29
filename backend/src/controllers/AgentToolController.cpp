@@ -1,14 +1,6 @@
 #include "controllers/AgentToolController.h"
 
-#include "agent/ToolRegistry.h"
-#include "agent/tools/AddTreatmentTool.h"
-#include "agent/tools/AvailableSlotsTool.h"
-#include "agent/tools/BookAppointmentTool.h"
-#include "agent/tools/CancelAppointmentTool.h"
-#include "agent/tools/DoctorScheduleTool.h"
-#include "agent/tools/ListDoctorsTool.h"
-#include "agent/tools/PatientHistoryTool.h"
-#include "agent/tools/SearchPatientTool.h"
+#include "agent/ToolRegistryFactory.h"
 
 #include <drogon/drogon.h>
 #include <json/json.h>
@@ -27,92 +19,6 @@ using ResponseCallback =
 
 using SharedResponseCallback =
     std::shared_ptr<ResponseCallback>;
-
-std::shared_ptr<
-    healthcare::agent::ToolRegistry
-> createToolRegistry(
-    const drogon::orm::DbClientPtr &databaseClient
-)
-{
-    auto toolRegistry =
-        std::make_shared<
-            healthcare::agent::ToolRegistry
-        >();
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                SearchPatientTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                AvailableSlotsTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                BookAppointmentTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                CancelAppointmentTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                DoctorScheduleTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                PatientHistoryTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                AddTreatmentTool
-        >(
-            databaseClient
-        )
-    );
-
-    toolRegistry->registerTool(
-        std::make_shared<
-            healthcare::agent::tools::
-                ListDoctorsTool
-        >(
-            databaseClient
-        )
-    );
-
-    return toolRegistry;
-}
 
 void sendError(
     const SharedResponseCallback &callback,
@@ -151,6 +57,13 @@ void sendError(
 
     (*callback)(response);
 }
+
+drogon::orm::DbClientPtr getDatabaseClient()
+{
+    return drogon::app().getDbClient(
+        "default"
+    );
+}
 }
 
 void AgentToolController::listTools(
@@ -166,7 +79,7 @@ void AgentToolController::listTools(
         );
 
     const auto databaseClient =
-        drogon::app().getDbClient("default");
+        getDatabaseClient();
 
     if (!databaseClient)
     {
@@ -181,13 +94,76 @@ void AgentToolController::listTools(
     }
 
     const auto toolRegistry =
-        createToolRegistry(databaseClient);
+        healthcare::agent::
+            ToolRegistryFactory::create(
+                databaseClient
+            );
 
     Json::Value responseBody =
         toolRegistry->definitions();
 
     responseBody["status"] =
         "success";
+
+    auto response =
+        drogon::HttpResponse::
+            newHttpJsonResponse(
+                responseBody
+            );
+
+    response->setStatusCode(
+        drogon::k200OK
+    );
+
+    (*sharedCallback)(response);
+}
+
+void AgentToolController::listGeminiTools(
+    const drogon::HttpRequestPtr &,
+    std::function<
+        void(const drogon::HttpResponsePtr &)
+    > &&callback
+) const
+{
+    auto sharedCallback =
+        std::make_shared<ResponseCallback>(
+            std::move(callback)
+        );
+
+    const auto databaseClient =
+        getDatabaseClient();
+
+    if (!databaseClient)
+    {
+        sendError(
+            sharedCallback,
+            drogon::k503ServiceUnavailable,
+            "database_client_unavailable",
+            "The PostgreSQL client is not configured."
+        );
+
+        return;
+    }
+
+    const auto toolRegistry =
+        healthcare::agent::
+            ToolRegistryFactory::create(
+                databaseClient
+            );
+
+    const Json::Value definitions =
+        toolRegistry->definitions();
+
+    Json::Value responseBody;
+
+    responseBody["status"] =
+        "success";
+
+    responseBody["count"] =
+        definitions["count"];
+
+    responseBody["data"] =
+        toolRegistry->geminiTools();
 
     auto response =
         drogon::HttpResponse::
@@ -232,7 +208,7 @@ void AgentToolController::executeTool(
     }
 
     const auto databaseClient =
-        drogon::app().getDbClient("default");
+        getDatabaseClient();
 
     if (!databaseClient)
     {
@@ -247,7 +223,10 @@ void AgentToolController::executeTool(
     }
 
     const auto toolRegistry =
-        createToolRegistry(databaseClient);
+        healthcare::agent::
+            ToolRegistryFactory::create(
+                databaseClient
+            );
 
     toolRegistry->execute(
         toolName,
