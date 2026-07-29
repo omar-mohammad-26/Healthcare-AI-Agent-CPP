@@ -6,6 +6,7 @@
 #include "agent/tools/BookAppointmentTool.h"
 #include "agent/tools/CancelAppointmentTool.h"
 #include "agent/tools/DoctorScheduleTool.h"
+#include "agent/tools/ListDoctorsTool.h"
 #include "agent/tools/PatientHistoryTool.h"
 #include "agent/tools/SearchPatientTool.h"
 
@@ -96,6 +97,15 @@ std::shared_ptr<
         std::make_shared<
             healthcare::agent::tools::
                 AddTreatmentTool
+        >(
+            databaseClient
+        )
+    );
+
+    toolRegistry->registerTool(
+        std::make_shared<
+            healthcare::agent::tools::
+                ListDoctorsTool
         >(
             databaseClient
         )
