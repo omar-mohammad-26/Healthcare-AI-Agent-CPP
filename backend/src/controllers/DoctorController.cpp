@@ -10,7 +10,6 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -391,6 +390,132 @@ void DoctorController::getDoctorSchedule(
                         drogon::k500InternalServerError,
                         "doctor_schedule_query_failed",
                         "Unable to retrieve the doctor schedule."
+                    );
+                    return;
+            }
+        }
+    );
+}
+
+void DoctorController::getAvailableSlots(
+    const drogon::HttpRequestPtr &request,
+    std::function<
+        void(const drogon::HttpResponsePtr &)
+    > &&callback,
+    std::string doctorId
+) const
+{
+    auto sharedCallback =
+        std::make_shared<ResponseCallback>(
+            std::move(callback)
+        );
+
+    int parsedDoctorId = 0;
+
+    if (!parsePositiveInteger(
+            doctorId,
+            parsedDoctorId
+        ))
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_path_parameter",
+            "Doctor ID must be a positive integer.",
+            "doctor_id"
+        );
+
+        return;
+    }
+
+    const std::string date =
+        request->getParameter("date");
+
+    if (!isValidDate(date))
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_query_parameter",
+            "Date is required and must use YYYY-MM-DD format.",
+            "date"
+        );
+
+        return;
+    }
+
+    const auto databaseClient =
+        drogon::app().getDbClient("default");
+
+    if (!databaseClient)
+    {
+        sendError(
+            sharedCallback,
+            drogon::k503ServiceUnavailable,
+            "database_client_unavailable",
+            "The PostgreSQL client is not configured."
+        );
+
+        return;
+    }
+
+    healthcare::services::DoctorService
+        doctorService(databaseClient);
+
+    doctorService.getAvailableSlots(
+        parsedDoctorId,
+        date,
+        [
+            sharedCallback
+        ](
+            Json::Value responseBody
+        )
+        {
+            auto response =
+                drogon::HttpResponse::
+                    newHttpJsonResponse(
+                        responseBody
+                    );
+
+            response->setStatusCode(
+                drogon::k200OK
+            );
+
+            (*sharedCallback)(response);
+        },
+        [
+            sharedCallback
+        ](
+            healthcare::services::
+                DoctorAvailabilityError error
+        )
+        {
+            switch (error.type)
+            {
+                case healthcare::services::
+                    DoctorAvailabilityErrorType::
+                        NotFound:
+                    sendError(
+                        sharedCallback,
+                        drogon::k404NotFound,
+                        "doctor_not_found",
+                        error.message,
+                        "doctor_id"
+                    );
+                    return;
+
+                case healthcare::services::
+                    DoctorAvailabilityErrorType::
+                        Database:
+                    LOG_ERROR
+                        << "Failed to retrieve available slots: "
+                        << error.message;
+
+                    sendError(
+                        sharedCallback,
+                        drogon::k500InternalServerError,
+                        "available_slots_query_failed",
+                        "Unable to retrieve available slots."
                     );
                     return;
             }

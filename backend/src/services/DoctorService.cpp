@@ -202,4 +202,124 @@ void DoctorService::getDoctorSchedule(
         }
     );
 }
+
+void DoctorService::getAvailableSlots(
+    const int doctorId,
+    std::string date,
+    SuccessCallback successCallback,
+    AvailabilityErrorCallback errorCallback
+) const
+{
+    auto sharedSuccessCallback =
+        std::make_shared<SuccessCallback>(
+            std::move(successCallback)
+        );
+
+    auto sharedErrorCallback =
+        std::make_shared<AvailabilityErrorCallback>(
+            std::move(errorCallback)
+        );
+
+    doctorRepository_.findAvailableSlots(
+        doctorId,
+        std::move(date),
+        [
+            sharedSuccessCallback,
+            sharedErrorCallback
+        ](
+            healthcare::models::DoctorAvailabilityResult
+                result
+        )
+        {
+            if (result.outcome ==
+                healthcare::models::
+                    DoctorAvailabilityOutcome::
+                        DoctorNotFound)
+            {
+                (*sharedErrorCallback)(
+                    {
+                        DoctorAvailabilityErrorType::
+                            NotFound,
+                        "The requested doctor does not exist."
+                    }
+                );
+
+                return;
+            }
+
+            const auto &availability =
+                result.availability.value();
+
+            Json::Value doctorJson;
+
+            doctorJson["id"] =
+                availability.doctorId;
+
+            doctorJson["full_name"] =
+                availability.doctorName;
+
+            doctorJson["specialty"] =
+                availability.specialty;
+
+            doctorJson["department_name"] =
+                availability.departmentName;
+
+            Json::Value slotArray(
+                Json::arrayValue
+            );
+
+            for (const auto &slot :
+                 availability.availableSlots)
+            {
+                slotArray.append(slot);
+            }
+
+            Json::Value workingHours;
+            workingHours["start"] = "09:00";
+            workingHours["end"] = "17:00";
+
+            Json::Value responseBody;
+
+            responseBody["doctor"] =
+                std::move(doctorJson);
+
+            responseBody["date"] =
+                availability.date;
+
+            responseBody["timezone"] =
+                "UTC";
+
+            responseBody["slot_duration_minutes"] =
+                30;
+
+            responseBody["working_hours"] =
+                std::move(workingHours);
+
+            responseBody["count"] =
+                static_cast<Json::UInt64>(
+                    availability.availableSlots.size()
+                );
+
+            responseBody["data"] =
+                std::move(slotArray);
+
+            (*sharedSuccessCallback)(
+                std::move(responseBody)
+            );
+        },
+        [
+            sharedErrorCallback
+        ](
+            std::string errorMessage
+        )
+        {
+            (*sharedErrorCallback)(
+                {
+                    DoctorAvailabilityErrorType::Database,
+                    std::move(errorMessage)
+                }
+            );
+        }
+    );
+}
 }

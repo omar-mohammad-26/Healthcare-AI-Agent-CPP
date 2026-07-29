@@ -250,4 +250,173 @@ void DoctorRepository::findSchedule(
         std::move(date)
     );
 }
+
+void DoctorRepository::findAvailableSlots(
+    const int doctorId,
+    std::string date,
+    AvailabilitySuccessCallback successCallback,
+    ErrorCallback errorCallback
+) const
+{
+    if (!databaseClient_)
+    {
+        errorCallback(
+            "The PostgreSQL client is not available."
+        );
+
+        return;
+    }
+
+    const std::string requestedDate = date;
+
+    databaseClient_->execSqlAsync(
+        R"(
+            WITH selected_doctor AS
+            (
+                SELECT
+                    doctor.id,
+                    doctor.full_name,
+                    doctor.specialty,
+                    department.name AS department_name
+                FROM doctors AS doctor
+                JOIN departments AS department
+                    ON department.id = doctor.department_id
+                WHERE doctor.id = CAST($1 AS INTEGER)
+            ),
+            candidate_slots AS
+            (
+                SELECT
+                    generate_series
+                    (
+                        CAST($2 AS DATE) + TIME '09:00:00',
+                        CAST($2 AS DATE) + TIME '16:30:00',
+                        INTERVAL '30 minutes'
+                    ) AS slot_start
+            ),
+            available_slots AS
+            (
+                SELECT
+                    candidate_slots.slot_start
+                FROM candidate_slots
+                WHERE NOT EXISTS
+                (
+                    SELECT 1
+                    FROM appointments AS appointment
+                    WHERE appointment.doctor_id =
+                              CAST($1 AS INTEGER)
+                      AND appointment.status <> 'cancelled'
+                      AND appointment.appointment_datetime >=
+                          (
+                              candidate_slots.slot_start
+                                  AT TIME ZONE 'UTC'
+                          )
+                      AND appointment.appointment_datetime <
+                          (
+                              (
+                                  candidate_slots.slot_start +
+                                  INTERVAL '30 minutes'
+                              )
+                              AT TIME ZONE 'UTC'
+                          )
+                )
+            )
+            SELECT
+                selected_doctor.id AS doctor_id,
+                selected_doctor.full_name AS doctor_name,
+                selected_doctor.specialty,
+                selected_doctor.department_name,
+
+                CASE
+                    WHEN available_slots.slot_start IS NULL
+                    THEN NULL
+                    ELSE TO_CHAR
+                    (
+                        available_slots.slot_start,
+                        'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+                    )
+                END AS slot_datetime
+            FROM selected_doctor
+            LEFT JOIN available_slots
+                ON TRUE
+            ORDER BY
+                available_slots.slot_start ASC
+        )",
+        [
+            successCallback =
+                std::move(successCallback),
+            requestedDate
+        ](
+            const drogon::orm::Result &result
+        ) mutable
+        {
+            if (result.size() == 0)
+            {
+                successCallback(
+                    {
+                        healthcare::models::
+                            DoctorAvailabilityOutcome::
+                                DoctorNotFound,
+                        std::nullopt
+                    }
+                );
+
+                return;
+            }
+
+            const auto firstRow = result[0];
+
+            healthcare::models::DoctorAvailability
+                availability;
+
+            availability.doctorId =
+                firstRow["doctor_id"].as<int>();
+
+            availability.doctorName =
+                firstRow["doctor_name"].as<std::string>();
+
+            availability.specialty =
+                firstRow["specialty"].as<std::string>();
+
+            availability.departmentName =
+                firstRow["department_name"]
+                    .as<std::string>();
+
+            availability.date =
+                requestedDate;
+
+            for (const auto &row : result)
+            {
+                if (row["slot_datetime"].isNull())
+                {
+                    continue;
+                }
+
+                availability.availableSlots.push_back(
+                    row["slot_datetime"].as<std::string>()
+                );
+            }
+
+            successCallback(
+                {
+                    healthcare::models::
+                        DoctorAvailabilityOutcome::Found,
+                    std::move(availability)
+                }
+            );
+        },
+        [
+            errorCallback =
+                std::move(errorCallback)
+        ](
+            const drogon::orm::DrogonDbException &exception
+        ) mutable
+        {
+            errorCallback(
+                exception.base().what()
+            );
+        },
+        doctorId,
+        std::move(date)
+    );
+}
 }

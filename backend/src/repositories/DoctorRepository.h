@@ -27,6 +27,11 @@ namespace healthcare::repositories
                 void(healthcare::models::DoctorScheduleResult)
             >;
 
+        using AvailabilitySuccessCallback =
+            std::function<
+                void(healthcare::models::DoctorAvailabilityResult)
+            >;
+
         explicit DoctorRepository(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -40,6 +45,13 @@ namespace healthcare::repositories
             int doctorId,
             std::string date,
             ScheduleSuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
+        void findAvailableSlots(
+            int doctorId,
+            std::string date,
+            AvailabilitySuccessCallback successCallback,
             ErrorCallback errorCallback
         ) const;
 

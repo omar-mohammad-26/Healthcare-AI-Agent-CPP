@@ -25,6 +25,12 @@ public:
         drogon::Get
     );
 
+    ADD_METHOD_TO(
+        DoctorController::getAvailableSlots,
+        "/doctors/{1}/available-slots",
+        drogon::Get
+    );
+
     METHOD_LIST_END
 
     void listDoctors(
@@ -35,6 +41,14 @@ public:
     ) const;
 
     void getDoctorSchedule(
+        const drogon::HttpRequestPtr &request,
+        std::function<
+            void(const drogon::HttpResponsePtr &)
+        > &&callback,
+        std::string doctorId
+    ) const;
+
+    void getAvailableSlots(
         const drogon::HttpRequestPtr &request,
         std::function<
             void(const drogon::HttpResponsePtr &)

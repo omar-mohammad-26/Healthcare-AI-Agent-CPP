@@ -46,4 +46,27 @@ namespace healthcare::models
         DoctorScheduleOutcome outcome;
         std::optional<DoctorSchedule> schedule;
     };
+
+    struct DoctorAvailability
+    {
+        int doctorId{};
+        std::string doctorName;
+        std::string specialty;
+        std::string departmentName;
+        std::string date;
+
+        std::vector<std::string> availableSlots;
+    };
+
+    enum class DoctorAvailabilityOutcome
+    {
+        Found,
+        DoctorNotFound
+    };
+
+    struct DoctorAvailabilityResult
+    {
+        DoctorAvailabilityOutcome outcome;
+        std::optional<DoctorAvailability> availability;
+    };
 }

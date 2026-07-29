@@ -22,6 +22,18 @@ namespace healthcare::services
         std::string message;
     };
 
+    enum class DoctorAvailabilityErrorType
+    {
+        NotFound,
+        Database
+    };
+
+    struct DoctorAvailabilityError
+    {
+        DoctorAvailabilityErrorType type;
+        std::string message;
+    };
+
     class DoctorService final
     {
     public:
@@ -33,6 +45,9 @@ namespace healthcare::services
 
         using ScheduleErrorCallback =
             std::function<void(DoctorScheduleError)>;
+
+        using AvailabilityErrorCallback =
+            std::function<void(DoctorAvailabilityError)>;
 
         explicit DoctorService(
             drogon::orm::DbClientPtr databaseClient
@@ -48,6 +63,13 @@ namespace healthcare::services
             std::string date,
             SuccessCallback successCallback,
             ScheduleErrorCallback errorCallback
+        ) const;
+
+        void getAvailableSlots(
+            int doctorId,
+            std::string date,
+            SuccessCallback successCallback,
+            AvailabilityErrorCallback errorCallback
         ) const;
 
     private:
