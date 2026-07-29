@@ -23,6 +23,11 @@ namespace healthcare::repositories
         using ErrorCallback =
             std::function<void(std::string)>;
 
+        using CreateSuccessCallback =
+            std::function<
+                void(healthcare::models::CreateAppointmentResult)
+            >;
+
         explicit AppointmentRepository(
             drogon::orm::DbClientPtr databaseClient
         );
@@ -32,6 +37,12 @@ namespace healthcare::repositories
             std::optional<int> doctorId,
             std::optional<int> patientId,
             SuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
+        void create(
+            healthcare::models::CreateAppointmentInput input,
+            CreateSuccessCallback successCallback,
             ErrorCallback errorCallback
         ) const;
 

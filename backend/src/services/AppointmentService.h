@@ -11,6 +11,21 @@
 
 namespace healthcare::services
 {
+    enum class AppointmentServiceErrorType
+    {
+        Validation,
+        NotFound,
+        Conflict,
+        Database
+    };
+
+    struct AppointmentServiceError
+    {
+        AppointmentServiceErrorType type;
+        std::string field;
+        std::string message;
+    };
+
     class AppointmentService final
     {
     public:
@@ -19,6 +34,9 @@ namespace healthcare::services
 
         using ErrorCallback =
             std::function<void(std::string)>;
+
+        using CreateErrorCallback =
+            std::function<void(AppointmentServiceError)>;
 
         explicit AppointmentService(
             drogon::orm::DbClientPtr databaseClient
@@ -30,6 +48,12 @@ namespace healthcare::services
             std::optional<int> patientId,
             SuccessCallback successCallback,
             ErrorCallback errorCallback
+        ) const;
+
+        void createAppointment(
+            healthcare::models::CreateAppointmentInput input,
+            SuccessCallback successCallback,
+            CreateErrorCallback errorCallback
         ) const;
 
     private:

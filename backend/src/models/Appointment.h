@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace healthcare::models
@@ -18,5 +19,27 @@ namespace healthcare::models
         std::string appointmentDatetime;
         std::string status;
         std::string createdAt;
+    };
+
+    struct CreateAppointmentInput
+    {
+        int patientId{};
+        int doctorId{};
+        std::string appointmentDatetime;
+    };
+
+    enum class CreateAppointmentOutcome
+    {
+        Created,
+        PatientNotFound,
+        DoctorNotFound,
+        PastDatetime,
+        Conflict
+    };
+
+    struct CreateAppointmentResult
+    {
+        CreateAppointmentOutcome outcome;
+        std::optional<Appointment> appointment;
     };
 }

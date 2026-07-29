@@ -1,5 +1,6 @@
 #include "controllers/AppointmentController.h"
 
+#include "models/Appointment.h"
 #include "services/AppointmentService.h"
 
 #include <drogon/drogon.h>
@@ -78,9 +79,9 @@ bool parseOptionalPositiveInteger(
             );
 
         if (parsedCharacters != value.size() ||
-    number <= 0 ||
-    number >
-        (std::numeric_limits<int>::max)())
+            number <= 0 ||
+            number >
+                (std::numeric_limits<int>::max)())
         {
             return false;
         }
@@ -96,29 +97,30 @@ bool parseOptionalPositiveInteger(
     }
 }
 
-void sendBadRequest(
+void sendError(
     const SharedResponseCallback &callback,
-    const std::string &parameter,
-    const std::string &message
+    const drogon::HttpStatusCode statusCode,
+    const std::string &code,
+    const std::string &message,
+    const std::string &field = ""
 )
 {
     Json::Value responseBody;
     responseBody["status"] = "error";
-    responseBody["code"] =
-        "invalid_query_parameter";
-    responseBody["parameter"] =
-        parameter;
-    responseBody["message"] =
-        message;
+    responseBody["code"] = code;
+    responseBody["message"] = message;
+
+    if (!field.empty())
+    {
+        responseBody["field"] = field;
+    }
 
     auto response =
         drogon::HttpResponse::newHttpJsonResponse(
             responseBody
         );
 
-    response->setStatusCode(
-        drogon::k400BadRequest
-    );
+    response->setStatusCode(statusCode);
 
     (*callback)(response);
 }
@@ -143,10 +145,12 @@ void AppointmentController::listAppointments(
 
     if (!isValidStatus(status))
     {
-        sendBadRequest(
+        sendError(
             sharedCallback,
-            "status",
-            "Status must be scheduled, cancelled, or completed."
+            drogon::k400BadRequest,
+            "invalid_query_parameter",
+            "Status must be scheduled, cancelled, or completed.",
+            "status"
         );
 
         return;
@@ -159,10 +163,12 @@ void AppointmentController::listAppointments(
             doctorId
         ))
     {
-        sendBadRequest(
+        sendError(
             sharedCallback,
-            "doctor_id",
-            "Doctor ID must be a positive integer."
+            drogon::k400BadRequest,
+            "invalid_query_parameter",
+            "Doctor ID must be a positive integer.",
+            "doctor_id"
         );
 
         return;
@@ -175,10 +181,12 @@ void AppointmentController::listAppointments(
             patientId
         ))
     {
-        sendBadRequest(
+        sendError(
             sharedCallback,
-            "patient_id",
-            "Patient ID must be a positive integer."
+            drogon::k400BadRequest,
+            "invalid_query_parameter",
+            "Patient ID must be a positive integer.",
+            "patient_id"
         );
 
         return;
@@ -189,23 +197,13 @@ void AppointmentController::listAppointments(
 
     if (!databaseClient)
     {
-        Json::Value responseBody;
-        responseBody["status"] = "error";
-        responseBody["code"] =
-            "database_client_unavailable";
-        responseBody["message"] =
-            "The PostgreSQL client is not configured.";
-
-        auto response =
-            drogon::HttpResponse::newHttpJsonResponse(
-                responseBody
-            );
-
-        response->setStatusCode(
-            drogon::k503ServiceUnavailable
+        sendError(
+            sharedCallback,
+            drogon::k503ServiceUnavailable,
+            "database_client_unavailable",
+            "The PostgreSQL client is not configured."
         );
 
-        (*sharedCallback)(response);
         return;
     }
 
@@ -244,13 +242,127 @@ void AppointmentController::listAppointments(
                 << "Failed to list appointments: "
                 << errorMessage;
 
-            Json::Value responseBody;
-            responseBody["status"] = "error";
-            responseBody["code"] =
-                "appointment_query_failed";
-            responseBody["message"] =
-                "Unable to retrieve appointments.";
+            sendError(
+                sharedCallback,
+                drogon::k500InternalServerError,
+                "appointment_query_failed",
+                "Unable to retrieve appointments."
+            );
+        }
+    );
+}
 
+void AppointmentController::createAppointment(
+    const drogon::HttpRequestPtr &request,
+    std::function<
+        void(const drogon::HttpResponsePtr &)
+    > &&callback
+) const
+{
+    auto sharedCallback =
+        std::make_shared<ResponseCallback>(
+            std::move(callback)
+        );
+
+    const auto requestBody =
+        request->getJsonObject();
+
+    if (!requestBody ||
+        !requestBody->isObject())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_request_body",
+            "Request body must be a valid JSON object."
+        );
+
+        return;
+    }
+
+    if (!requestBody->isMember("patient_id") ||
+        !(*requestBody)["patient_id"].isInt())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_request_body",
+            "Patient ID is required and must be an integer.",
+            "patient_id"
+        );
+
+        return;
+    }
+
+    if (!requestBody->isMember("doctor_id") ||
+        !(*requestBody)["doctor_id"].isInt())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_request_body",
+            "Doctor ID is required and must be an integer.",
+            "doctor_id"
+        );
+
+        return;
+    }
+
+    if (!requestBody->isMember(
+            "appointment_datetime"
+        ) ||
+        !(*requestBody)["appointment_datetime"]
+            .isString())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_request_body",
+            "Appointment datetime is required and must be a string.",
+            "appointment_datetime"
+        );
+
+        return;
+    }
+
+    healthcare::models::CreateAppointmentInput input;
+
+    input.patientId =
+        (*requestBody)["patient_id"].asInt();
+
+    input.doctorId =
+        (*requestBody)["doctor_id"].asInt();
+
+    input.appointmentDatetime =
+        (*requestBody)["appointment_datetime"]
+            .asString();
+
+    const auto databaseClient =
+        drogon::app().getDbClient("default");
+
+    if (!databaseClient)
+    {
+        sendError(
+            sharedCallback,
+            drogon::k503ServiceUnavailable,
+            "database_client_unavailable",
+            "The PostgreSQL client is not configured."
+        );
+
+        return;
+    }
+
+    healthcare::services::AppointmentService
+        appointmentService(databaseClient);
+
+    appointmentService.createAppointment(
+        std::move(input),
+        [
+            sharedCallback
+        ](
+            Json::Value responseBody
+        )
+        {
             auto response =
                 drogon::HttpResponse::
                     newHttpJsonResponse(
@@ -258,10 +370,71 @@ void AppointmentController::listAppointments(
                     );
 
             response->setStatusCode(
-                drogon::k500InternalServerError
+                drogon::k201Created
             );
 
             (*sharedCallback)(response);
+        },
+        [
+            sharedCallback
+        ](
+            healthcare::services::
+                AppointmentServiceError error
+        )
+        {
+            switch (error.type)
+            {
+                case healthcare::services::
+                    AppointmentServiceErrorType::
+                        Validation:
+                    sendError(
+                        sharedCallback,
+                        drogon::k400BadRequest,
+                        "invalid_appointment_data",
+                        error.message,
+                        error.field
+                    );
+                    return;
+
+                case healthcare::services::
+                    AppointmentServiceErrorType::
+                        NotFound:
+                    sendError(
+                        sharedCallback,
+                        drogon::k404NotFound,
+                        "appointment_reference_not_found",
+                        error.message,
+                        error.field
+                    );
+                    return;
+
+                case healthcare::services::
+                    AppointmentServiceErrorType::
+                        Conflict:
+                    sendError(
+                        sharedCallback,
+                        drogon::k409Conflict,
+                        "appointment_slot_conflict",
+                        error.message,
+                        error.field
+                    );
+                    return;
+
+                case healthcare::services::
+                    AppointmentServiceErrorType::
+                        Database:
+                    LOG_ERROR
+                        << "Failed to create appointment: "
+                        << error.message;
+
+                    sendError(
+                        sharedCallback,
+                        drogon::k500InternalServerError,
+                        "appointment_creation_failed",
+                        "Unable to create the appointment."
+                    );
+                    return;
+            }
         }
     );
 }

@@ -18,9 +18,22 @@ public:
         drogon::Get
     );
 
+    ADD_METHOD_TO(
+        AppointmentController::createAppointment,
+        "/appointments",
+        drogon::Post
+    );
+
     METHOD_LIST_END
 
     void listAppointments(
+        const drogon::HttpRequestPtr &request,
+        std::function<
+            void(const drogon::HttpResponsePtr &)
+        > &&callback
+    ) const;
+
+    void createAppointment(
         const drogon::HttpRequestPtr &request,
         std::function<
             void(const drogon::HttpResponsePtr &)
