@@ -147,9 +147,6 @@ Json::Value createGenerationConfig()
 {
     Json::Value generationConfig;
 
-    generationConfig["temperature"] =
-        0.0;
-
     generationConfig["maxOutputTokens"] =
         512;
 

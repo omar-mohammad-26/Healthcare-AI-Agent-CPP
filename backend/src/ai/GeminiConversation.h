@@ -3,9 +3,20 @@
 #include <json/json.h>
 
 #include <string>
+#include <vector>
 
 namespace healthcare::ai
 {
+    struct GeminiFunctionResult
+    {
+        std::string functionCallId;
+        std::string functionName;
+
+        Json::Value functionResult{
+            Json::objectValue
+        };
+    };
+
     class GeminiConversation final
     {
     public:
@@ -24,6 +35,12 @@ namespace healthcare::ai
             const std::string &functionName,
             const Json::Value &functionResult,
             const std::string &functionCallId = ""
+        );
+
+        static void appendFunctionResponses(
+            Json::Value &contents,
+            const std::vector<GeminiFunctionResult>
+                &functionResults
         );
     };
 }

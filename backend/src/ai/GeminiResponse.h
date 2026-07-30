@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace healthcare::ai
 {
@@ -32,6 +33,9 @@ namespace healthcare::ai
         std::string text;
 
         GeminiFunctionCall functionCall;
+
+        std::vector<GeminiFunctionCall>
+            functionCalls;
 
         Json::Value modelContent{
             Json::objectValue

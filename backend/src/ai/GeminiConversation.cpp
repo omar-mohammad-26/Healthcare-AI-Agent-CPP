@@ -2,6 +2,50 @@
 
 #include <string>
 #include <utility>
+#include <vector>
+
+namespace
+{
+Json::Value createFunctionResponsePart(
+    const healthcare::ai::GeminiFunctionResult
+        &functionResult
+)
+{
+    Json::Value responseValue;
+
+    if (functionResult.functionResult.isObject())
+    {
+        responseValue =
+            functionResult.functionResult;
+    }
+    else
+    {
+        responseValue["result"] =
+            functionResult.functionResult;
+    }
+
+    Json::Value functionResponse;
+
+    functionResponse["name"] =
+        functionResult.functionName;
+
+    functionResponse["response"] =
+        std::move(responseValue);
+
+    if (!functionResult.functionCallId.empty())
+    {
+        functionResponse["id"] =
+            functionResult.functionCallId;
+    }
+
+    Json::Value responsePart;
+
+    responsePart["functionResponse"] =
+        std::move(functionResponse);
+
+    return responsePart;
+}
+}
 
 namespace healthcare::ai
 {
@@ -64,51 +108,58 @@ void GeminiConversation::appendFunctionResponse(
     const std::string &functionCallId
 )
 {
+    GeminiFunctionResult result;
+
+    result.functionCallId =
+        functionCallId;
+
+    result.functionName =
+        functionName;
+
+    result.functionResult =
+        functionResult;
+
+    appendFunctionResponses(
+        contents,
+        {result}
+    );
+}
+
+void GeminiConversation::appendFunctionResponses(
+    Json::Value &contents,
+    const std::vector<GeminiFunctionResult>
+        &functionResults
+)
+{
     if (!contents.isArray() ||
-        functionName.empty())
+        functionResults.empty())
     {
         return;
     }
-
-    Json::Value responseValue;
-
-    if (functionResult.isObject())
-    {
-        responseValue =
-            functionResult;
-    }
-    else
-    {
-        responseValue["result"] =
-            functionResult;
-    }
-
-    Json::Value functionResponse;
-
-    functionResponse["name"] =
-        functionName;
-
-    functionResponse["response"] =
-        std::move(responseValue);
-
-    if (!functionCallId.empty())
-    {
-        functionResponse["id"] =
-            functionCallId;
-    }
-
-    Json::Value responsePart;
-
-    responsePart["functionResponse"] =
-        std::move(functionResponse);
 
     Json::Value parts(
         Json::arrayValue
     );
 
-    parts.append(
-        std::move(responsePart)
-    );
+    for (const auto &functionResult :
+         functionResults)
+    {
+        if (functionResult.functionName.empty())
+        {
+            continue;
+        }
+
+        parts.append(
+            createFunctionResponsePart(
+                functionResult
+            )
+        );
+    }
+
+    if (parts.empty())
+    {
+        return;
+    }
 
     Json::Value userContent;
 
