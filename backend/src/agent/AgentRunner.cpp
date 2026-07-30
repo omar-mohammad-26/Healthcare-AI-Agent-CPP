@@ -92,11 +92,13 @@ void AgentRunner::run(
         return;
     }
 
-    const Json::Value tools =
-        toolRegistry_->geminiTools();
+    const auto tools =
+        std::make_shared<Json::Value>(
+            toolRegistry_->geminiTools()
+        );
 
-    if (!tools.isArray() ||
-        tools.empty())
+    if (!tools->isArray() ||
+        tools->empty())
     {
         (*sharedErrorCallback)(
             {
@@ -108,11 +110,18 @@ void AgentRunner::run(
         return;
     }
 
-    const Json::Value contents =
-        healthcare::ai::
-            GeminiConversation::create(
-                prompt
-            );
+    const auto contents =
+        std::make_shared<Json::Value>(
+            healthcare::ai::
+                GeminiConversation::create(
+                    prompt
+                )
+        );
+
+    const auto steps =
+        std::make_shared<Json::Value>(
+            Json::arrayValue
+        );
 
     const auto geminiClient =
         geminiClient_;
@@ -121,19 +130,20 @@ void AgentRunner::run(
         toolRegistry_;
 
     geminiClient->generateConversation(
-        contents,
-        tools,
+        *contents,
+        *tools,
         [
             sharedSuccessCallback,
             sharedErrorCallback,
             geminiClient,
-            toolRegistry
+            toolRegistry,
+            contents,
+            tools,
+            steps
         ](
             healthcare::ai::GeminiResponse response
         )
         {
-            static_cast<void>(geminiClient);
-
             if (response.type ==
                 healthcare::ai::
                     GeminiResponseType::Text)
@@ -143,6 +153,9 @@ void AgentRunner::run(
                 result.answer =
                     std::move(response.text);
 
+                result.steps =
+                    *steps;
+
                 (*sharedSuccessCallback)(
                     std::move(result)
                 );
@@ -150,11 +163,20 @@ void AgentRunner::run(
                 return;
             }
 
+            healthcare::ai::
+                GeminiConversation::appendModelContent(
+                    *contents,
+                    response.modelContent
+                );
+
             const std::string functionName =
                 response.functionCall.name;
 
             const Json::Value functionArguments =
                 response.functionCall.arguments;
+
+            const std::string functionCallId =
+                response.functionCall.id;
 
             toolRegistry->execute(
                 functionName,
@@ -164,24 +186,16 @@ void AgentRunner::run(
                     sharedErrorCallback,
                     geminiClient,
                     toolRegistry,
+                    contents,
+                    tools,
+                    steps,
                     functionName,
-                    functionArguments
+                    functionArguments,
+                    functionCallId
                 ](
                     Json::Value toolResult
                 )
                 {
-                    static_cast<void>(
-                        sharedErrorCallback
-                    );
-
-                    static_cast<void>(
-                        geminiClient
-                    );
-
-                    static_cast<void>(
-                        toolRegistry
-                    );
-
                     Json::Value step;
 
                     step["type"] =
@@ -194,27 +208,133 @@ void AgentRunner::run(
                         functionArguments;
 
                     step["result"] =
-                        std::move(toolResult);
+                        toolResult;
 
-                    AgentRunResult result;
-
-                    result.answer =
-                        "Executed the Agent tool '" +
-                        functionName +
-                        "' successfully.";
-
-                    result.steps.append(
+                    steps->append(
                         std::move(step)
                     );
 
-                    (*sharedSuccessCallback)(
-                        std::move(result)
+                    healthcare::ai::
+                        GeminiConversation::
+                            appendFunctionResponse(
+                                *contents,
+                                functionName,
+                                toolResult,
+                                functionCallId
+                            );
+
+                    geminiClient->generateConversation(
+                        *contents,
+                        *tools,
+                        [
+                            sharedSuccessCallback,
+                            sharedErrorCallback,
+                            geminiClient,
+                            toolRegistry,
+                            contents,
+                            tools,
+                            steps
+                        ](
+                            healthcare::ai::
+                                GeminiResponse finalResponse
+                        )
+                        {
+                            static_cast<void>(
+                                sharedErrorCallback
+                            );
+
+                            static_cast<void>(
+                                geminiClient
+                            );
+
+                            static_cast<void>(
+                                toolRegistry
+                            );
+
+                            static_cast<void>(
+                                contents
+                            );
+
+                            static_cast<void>(
+                                tools
+                            );
+
+                            if (finalResponse.type ==
+                                healthcare::ai::
+                                    GeminiResponseType::Text)
+                            {
+                                AgentRunResult result;
+
+                                result.answer =
+                                    std::move(
+                                        finalResponse.text
+                                    );
+
+                                result.steps =
+                                    *steps;
+
+                                (*sharedSuccessCallback)(
+                                    std::move(result)
+                                );
+
+                                return;
+                            }
+
+                            (*sharedErrorCallback)(
+                                {
+                                    AgentRunnerErrorType::Tool,
+                                    "Gemini requested another tool, but multi-step execution is not implemented yet."
+                                }
+                            );
+                        },
+                        [
+                            sharedErrorCallback,
+                            geminiClient,
+                            toolRegistry,
+                            contents,
+                            tools,
+                            steps
+                        ](
+                            healthcare::ai::
+                                GeminiError error
+                        )
+                        {
+                            static_cast<void>(
+                                geminiClient
+                            );
+
+                            static_cast<void>(
+                                toolRegistry
+                            );
+
+                            static_cast<void>(
+                                contents
+                            );
+
+                            static_cast<void>(
+                                tools
+                            );
+
+                            static_cast<void>(
+                                steps
+                            );
+
+                            (*sharedErrorCallback)(
+                                {
+                                    AgentRunnerErrorType::Gemini,
+                                    std::move(error.message)
+                                }
+                            );
+                        }
                     );
                 },
                 [
                     sharedErrorCallback,
                     geminiClient,
                     toolRegistry,
+                    contents,
+                    tools,
+                    steps,
                     functionName
                 ](
                     AgentToolError error
@@ -226,6 +346,18 @@ void AgentRunner::run(
 
                     static_cast<void>(
                         toolRegistry
+                    );
+
+                    static_cast<void>(
+                        contents
+                    );
+
+                    static_cast<void>(
+                        tools
+                    );
+
+                    static_cast<void>(
+                        steps
                     );
 
                     (*sharedErrorCallback)(
@@ -243,13 +375,33 @@ void AgentRunner::run(
         [
             sharedErrorCallback,
             geminiClient,
-            toolRegistry
+            toolRegistry,
+            contents,
+            tools,
+            steps
         ](
             healthcare::ai::GeminiError error
         )
         {
-            static_cast<void>(geminiClient);
-            static_cast<void>(toolRegistry);
+            static_cast<void>(
+                geminiClient
+            );
+
+            static_cast<void>(
+                toolRegistry
+            );
+
+            static_cast<void>(
+                contents
+            );
+
+            static_cast<void>(
+                tools
+            );
+
+            static_cast<void>(
+                steps
+            );
 
             (*sharedErrorCallback)(
                 {
