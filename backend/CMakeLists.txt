@@ -13,6 +13,8 @@ set(BACKEND_SOURCES
         src/ai/GeminiClient.h
         src/ai/GeminiResponse.cpp
         src/ai/GeminiResponse.h
+        src/ai/GeminiConversation.cpp
+        src/ai/GeminiConversation.h
 
         src/models/Department.h
         src/models/Doctor.h
