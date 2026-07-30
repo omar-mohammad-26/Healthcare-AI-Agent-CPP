@@ -5,6 +5,54 @@
 
 namespace
 {
+Json::Value createGeminiCompatibleSchema(
+    const Json::Value &value
+)
+{
+    if (value.isObject())
+    {
+        Json::Value sanitizedObject(
+            Json::objectValue
+        );
+
+        for (const std::string &memberName :
+             value.getMemberNames())
+        {
+            if (memberName == "additionalProperties")
+            {
+                continue;
+            }
+
+            sanitizedObject[memberName] =
+                createGeminiCompatibleSchema(
+                    value[memberName]
+                );
+        }
+
+        return sanitizedObject;
+    }
+
+    if (value.isArray())
+    {
+        Json::Value sanitizedArray(
+            Json::arrayValue
+        );
+
+        for (const auto &item : value)
+        {
+            sanitizedArray.append(
+                createGeminiCompatibleSchema(
+                    item
+                )
+            );
+        }
+
+        return sanitizedArray;
+    }
+
+    return value;
+}
+
 Json::Value createToolDefinition(
     const std::string &toolName,
     const healthcare::agent::AgentTool &tool
@@ -20,6 +68,27 @@ Json::Value createToolDefinition(
 
     toolDefinition["parameters"] =
         tool.parametersSchema();
+
+    return toolDefinition;
+}
+
+Json::Value createGeminiToolDefinition(
+    const std::string &toolName,
+    const healthcare::agent::AgentTool &tool
+)
+{
+    Json::Value toolDefinition;
+
+    toolDefinition["name"] =
+        toolName;
+
+    toolDefinition["description"] =
+        tool.description();
+
+    toolDefinition["parameters"] =
+        createGeminiCompatibleSchema(
+            tool.parametersSchema()
+        );
 
     return toolDefinition;
 }
@@ -90,7 +159,7 @@ Json::Value ToolRegistry::geminiTools() const
     for (const auto &[toolName, tool] : tools_)
     {
         functionDeclarations.append(
-            createToolDefinition(
+            createGeminiToolDefinition(
                 toolName,
                 *tool
             )
