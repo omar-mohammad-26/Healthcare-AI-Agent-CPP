@@ -117,13 +117,17 @@ void AgentRunner::run(
     const auto geminiClient =
         geminiClient_;
 
+    const auto toolRegistry =
+        toolRegistry_;
+
     geminiClient->generateConversation(
         contents,
         tools,
         [
             sharedSuccessCallback,
             sharedErrorCallback,
-            geminiClient
+            geminiClient,
+            toolRegistry
         ](
             healthcare::ai::GeminiResponse response
         )
@@ -146,23 +150,106 @@ void AgentRunner::run(
                 return;
             }
 
-            (*sharedErrorCallback)(
+            const std::string functionName =
+                response.functionCall.name;
+
+            const Json::Value functionArguments =
+                response.functionCall.arguments;
+
+            toolRegistry->execute(
+                functionName,
+                functionArguments,
+                [
+                    sharedSuccessCallback,
+                    sharedErrorCallback,
+                    geminiClient,
+                    toolRegistry,
+                    functionName,
+                    functionArguments
+                ](
+                    Json::Value toolResult
+                )
                 {
-                    AgentRunnerErrorType::Tool,
-                    "Gemini requested the tool '" +
-                    response.functionCall.name +
-                    "', but Agent tool execution is not implemented yet."
+                    static_cast<void>(
+                        sharedErrorCallback
+                    );
+
+                    static_cast<void>(
+                        geminiClient
+                    );
+
+                    static_cast<void>(
+                        toolRegistry
+                    );
+
+                    Json::Value step;
+
+                    step["type"] =
+                        "tool";
+
+                    step["name"] =
+                        functionName;
+
+                    step["arguments"] =
+                        functionArguments;
+
+                    step["result"] =
+                        std::move(toolResult);
+
+                    AgentRunResult result;
+
+                    result.answer =
+                        "Executed the Agent tool '" +
+                        functionName +
+                        "' successfully.";
+
+                    result.steps.append(
+                        std::move(step)
+                    );
+
+                    (*sharedSuccessCallback)(
+                        std::move(result)
+                    );
+                },
+                [
+                    sharedErrorCallback,
+                    geminiClient,
+                    toolRegistry,
+                    functionName
+                ](
+                    AgentToolError error
+                )
+                {
+                    static_cast<void>(
+                        geminiClient
+                    );
+
+                    static_cast<void>(
+                        toolRegistry
+                    );
+
+                    (*sharedErrorCallback)(
+                        {
+                            AgentRunnerErrorType::Tool,
+                            "Agent tool '" +
+                            functionName +
+                            "' failed: " +
+                            error.message
+                        }
+                    );
                 }
             );
         },
         [
             sharedErrorCallback,
-            geminiClient
+            geminiClient,
+            toolRegistry
         ](
             healthcare::ai::GeminiError error
         )
         {
             static_cast<void>(geminiClient);
+            static_cast<void>(toolRegistry);
 
             (*sharedErrorCallback)(
                 {
