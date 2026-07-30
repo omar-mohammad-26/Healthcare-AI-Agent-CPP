@@ -60,6 +60,13 @@ namespace healthcare::ai
             ErrorCallback errorCallback
         ) const;
 
+        void generateConversation(
+            const Json::Value &contents,
+            const Json::Value &tools,
+            StructuredSuccessCallback successCallback,
+            ErrorCallback errorCallback
+        ) const;
+
     private:
         healthcare::config::GeminiConfig configuration_;
     };

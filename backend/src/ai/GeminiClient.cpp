@@ -547,4 +547,181 @@ void GeminiClient::generateWithTools(
         }
     );
 }
+
+void GeminiClient::generateConversation(
+    const Json::Value &contents,
+    const Json::Value &tools,
+    StructuredSuccessCallback successCallback,
+    ErrorCallback errorCallback
+) const
+{
+    if (!configuration_.isConfigured())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "GEMINI_API_KEY is not configured."
+            }
+        );
+
+        return;
+    }
+
+    if (!contents.isArray() ||
+        contents.empty())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "Gemini conversation contents must be a non-empty JSON array."
+            }
+        );
+
+        return;
+    }
+
+    if (!tools.isArray() ||
+        tools.empty())
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Configuration,
+                0,
+                "Gemini tools must be a non-empty JSON array."
+            }
+        );
+
+        return;
+    }
+
+    Json::Value requestBody;
+
+    requestBody["contents"] =
+        contents;
+
+    requestBody["tools"] =
+        tools;
+
+    requestBody["generationConfig"] =
+        createGenerationConfig();
+
+    const auto httpClient =
+        drogon::HttpClient::newHttpClient(
+            configuration_.baseUrl
+        );
+
+    if (!httpClient)
+    {
+        errorCallback(
+            {
+                GeminiErrorType::Network,
+                0,
+                "Unable to create the Gemini HTTP client."
+            }
+        );
+
+        return;
+    }
+
+    const auto request =
+        createGeminiRequest(
+            configuration_,
+            requestBody
+        );
+
+    httpClient->sendRequest(
+        request,
+        [
+            httpClient,
+            successCallback =
+                std::move(successCallback),
+            errorCallback =
+                std::move(errorCallback)
+        ](
+            const drogon::ReqResult requestResult,
+            const drogon::HttpResponsePtr &response
+        ) mutable
+        {
+            static_cast<void>(httpClient);
+
+            if (requestResult !=
+                    drogon::ReqResult::Ok ||
+                !response)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::Network,
+                        0,
+                        "Unable to connect to the Gemini API."
+                    }
+                );
+
+                return;
+            }
+
+            const int statusCode =
+                static_cast<int>(
+                    response->getStatusCode()
+                );
+
+            if (statusCode < 200 ||
+                statusCode >= 300)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::Api,
+                        statusCode,
+                        extractApiErrorMessage(
+                            response
+                        )
+                    }
+                );
+
+                return;
+            }
+
+            const auto responseJson =
+                response->getJsonObject();
+
+            if (!responseJson)
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::InvalidResponse,
+                        statusCode,
+                        "Gemini returned a response that was not valid JSON."
+                    }
+                );
+
+                return;
+            }
+
+            auto parsedResponse =
+                GeminiResponseParser::parse(
+                    *responseJson
+                );
+
+            if (!parsedResponse.has_value())
+            {
+                errorCallback(
+                    {
+                        GeminiErrorType::InvalidResponse,
+                        statusCode,
+                        "Gemini returned neither text nor a valid function call."
+                    }
+                );
+
+                return;
+            }
+
+            successCallback(
+                std::move(
+                    parsedResponse.value()
+                )
+            );
+        }
+    );
+}
 }
