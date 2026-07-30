@@ -26,6 +26,12 @@ public:
         drogon::Post
     );
 
+    ADD_METHOD_TO(
+        GeminiController::runAgent,
+        "/agent/run",
+        drogon::Post
+    );
+
     METHOD_LIST_END
 
     void checkConnection(
@@ -36,6 +42,13 @@ public:
     ) const;
 
     void previewToolCall(
+        const drogon::HttpRequestPtr &request,
+        std::function<
+            void(const drogon::HttpResponsePtr &)
+        > &&callback
+    ) const;
+
+    void runAgent(
         const drogon::HttpRequestPtr &request,
         std::function<
             void(const drogon::HttpResponsePtr &)

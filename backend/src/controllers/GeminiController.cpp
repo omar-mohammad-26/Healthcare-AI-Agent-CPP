@@ -1,5 +1,6 @@
 #include "controllers/GeminiController.h"
 
+#include "agent/AgentRunner.h"
 #include "agent/ToolRegistryFactory.h"
 #include "ai/GeminiClient.h"
 #include "config/GeminiConfig.h"
@@ -109,6 +110,55 @@ void sendGeminiError(
                 "gemini_invalid_response",
                 error.message,
                 error.statusCode
+            );
+            return;
+    }
+}
+
+void sendAgentError(
+    const SharedResponseCallback &callback,
+    healthcare::agent::AgentRunnerError error
+)
+{
+    switch (error.type)
+    {
+        case healthcare::agent::
+            AgentRunnerErrorType::Validation:
+            sendError(
+                callback,
+                drogon::k400BadRequest,
+                "invalid_agent_prompt",
+                error.message
+            );
+            return;
+
+        case healthcare::agent::
+            AgentRunnerErrorType::Gemini:
+            sendError(
+                callback,
+                drogon::k502BadGateway,
+                "agent_gemini_error",
+                error.message
+            );
+            return;
+
+        case healthcare::agent::
+            AgentRunnerErrorType::Tool:
+            sendError(
+                callback,
+                drogon::k500InternalServerError,
+                "agent_tool_error",
+                error.message
+            );
+            return;
+
+        case healthcare::agent::
+            AgentRunnerErrorType::StepLimit:
+            sendError(
+                callback,
+                drogon::k500InternalServerError,
+                "agent_step_limit_reached",
+                error.message
             );
             return;
     }
@@ -356,6 +406,153 @@ void GeminiController::previewToolCall(
         )
         {
             sendGeminiError(
+                sharedCallback,
+                std::move(error)
+            );
+        }
+    );
+}
+
+void GeminiController::runAgent(
+    const drogon::HttpRequestPtr &request,
+    std::function<
+        void(const drogon::HttpResponsePtr &)
+    > &&callback
+) const
+{
+    auto sharedCallback =
+        std::make_shared<ResponseCallback>(
+            std::move(callback)
+        );
+
+    const auto requestBody =
+        request->getJsonObject();
+
+    if (!requestBody ||
+        !requestBody->isObject())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_request_body",
+            "Request body must be a valid JSON object."
+        );
+
+        return;
+    }
+
+    if (!requestBody->isMember("prompt") ||
+        !(*requestBody)["prompt"].isString() ||
+        (*requestBody)["prompt"].asString().empty())
+    {
+        sendError(
+            sharedCallback,
+            drogon::k400BadRequest,
+            "invalid_prompt",
+            "The prompt field must be a non-empty string."
+        );
+
+        return;
+    }
+
+    const auto databaseClient =
+        drogon::app().getDbClient(
+            "default"
+        );
+
+    if (!databaseClient)
+    {
+        sendError(
+            sharedCallback,
+            drogon::k503ServiceUnavailable,
+            "database_client_unavailable",
+            "The PostgreSQL client is not configured."
+        );
+
+        return;
+    }
+
+    const healthcare::config::GeminiConfig
+        configuration =
+            healthcare::config::GeminiConfig::
+                fromEnvironment();
+
+    const auto geminiClient =
+        std::make_shared<
+            healthcare::ai::GeminiClient
+        >(
+            configuration
+        );
+
+    const auto toolRegistry =
+        healthcare::agent::
+            ToolRegistryFactory::create(
+                databaseClient
+            );
+
+    const auto agentRunner =
+        std::make_shared<
+            healthcare::agent::AgentRunner
+        >(
+            geminiClient,
+            toolRegistry
+        );
+
+    const std::string prompt =
+        (*requestBody)["prompt"].asString();
+
+    agentRunner->run(
+        prompt,
+        [
+            sharedCallback,
+            agentRunner,
+            configuration
+        ](
+            healthcare::agent::AgentRunResult result
+        )
+        {
+            Json::Value responseBody;
+
+            responseBody["status"] =
+                "success";
+
+            responseBody["provider"] =
+                "gemini";
+
+            responseBody["model"] =
+                configuration.model;
+
+            responseBody["answer"] =
+                std::move(result.answer);
+
+            responseBody["steps"] =
+                std::move(result.steps);
+
+            responseBody["step_count"] =
+                static_cast<Json::UInt64>(
+                    responseBody["steps"].size()
+                );
+
+            auto response =
+                drogon::HttpResponse::
+                    newHttpJsonResponse(
+                        responseBody
+                    );
+
+            response->setStatusCode(
+                drogon::k200OK
+            );
+
+            (*sharedCallback)(response);
+        },
+        [
+            sharedCallback,
+            agentRunner
+        ](
+            healthcare::agent::AgentRunnerError error
+        )
+        {
+            sendAgentError(
                 sharedCallback,
                 std::move(error)
             );
