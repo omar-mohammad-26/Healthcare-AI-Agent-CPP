@@ -31,7 +31,9 @@ Json::Value loadApplicationConfiguration(
     }
 
     Json::CharReaderBuilder readerBuilder;
-    readerBuilder["collectComments"] = false;
+
+    readerBuilder["collectComments"] =
+        false;
 
     Json::Value configuration;
     std::string parsingErrors;
@@ -50,23 +52,134 @@ Json::Value loadApplicationConfiguration(
     }
 
     configuration["db_clients"] =
-        healthcare::config::buildDatabaseClientsConfig();
+        healthcare::config::
+            buildDatabaseClientsConfig();
 
     return configuration;
 }
+
+bool isAllowedFrontendOrigin(
+    const std::string &origin
+)
+{
+    return
+        origin == "http://localhost:5173" ||
+        origin == "http://127.0.0.1:5173";
 }
 
-int main(int, char *argv[])
+void addCorsHeaders(
+    const drogon::HttpRequestPtr &request,
+    const drogon::HttpResponsePtr &response
+)
+{
+    if (!request ||
+        !response)
+    {
+        return;
+    }
+
+    const std::string origin =
+        request->getHeader("origin");
+
+    if (isAllowedFrontendOrigin(origin))
+    {
+        response->addHeader(
+            "Access-Control-Allow-Origin",
+            origin
+        );
+
+        response->addHeader(
+            "Vary",
+            "Origin"
+        );
+    }
+
+    response->addHeader(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    );
+
+    response->addHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization"
+    );
+
+    response->addHeader(
+        "Access-Control-Max-Age",
+        "600"
+    );
+}
+
+void configureCors()
+{
+    drogon::app().registerPreRoutingAdvice(
+        [](
+            const drogon::HttpRequestPtr &request,
+            drogon::AdviceCallback &&callback,
+            drogon::AdviceChainCallback &&chainCallback
+        )
+        {
+            if (request->method() !=
+                drogon::Options)
+            {
+                chainCallback();
+
+                return;
+            }
+
+            auto response =
+                drogon::HttpResponse::
+                    newHttpResponse();
+
+            response->setStatusCode(
+                drogon::k204NoContent
+            );
+
+            addCorsHeaders(
+                request,
+                response
+            );
+
+            callback(
+                response
+            );
+        }
+    );
+
+    drogon::app().registerPostHandlingAdvice(
+        [](
+            const drogon::HttpRequestPtr &request,
+            const drogon::HttpResponsePtr &response
+        )
+        {
+            addCorsHeaders(
+                request,
+                response
+            );
+        }
+    );
+}
+}
+
+int main(
+    int,
+    char *argv[]
+)
 {
     try
     {
         const auto executableDirectory =
-            std::filesystem::absolute(argv[0]).parent_path();
+            std::filesystem::absolute(
+                argv[0]
+            ).parent_path();
 
         const auto configPath =
-            executableDirectory / "config.json";
+            executableDirectory /
+            "config.json";
 
-        if (!std::filesystem::exists(configPath))
+        if (!std::filesystem::exists(
+                configPath
+            ))
         {
             throw std::runtime_error(
                 "Drogon configuration file was not found: " +
@@ -75,11 +188,17 @@ int main(int, char *argv[])
         }
 
         auto configuration =
-            loadApplicationConfiguration(configPath);
+            loadApplicationConfiguration(
+                configPath
+            );
 
-        drogon::app()
-            .loadConfigJson(std::move(configuration))
-            .run();
+        drogon::app().loadConfigJson(
+            std::move(configuration)
+        );
+
+        configureCors();
+
+        drogon::app().run();
     }
     catch (const std::exception &exception)
     {
