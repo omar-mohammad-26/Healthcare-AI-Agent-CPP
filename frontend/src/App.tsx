@@ -1,25 +1,17 @@
 import { useMemo, useState, type FormEventHandler } from 'react'
+import {
+  runHealthcareAgent,
+  type AgentStep,
+} from './services/agentApi'
 import './App.css'
 
 type MessageRole = 'assistant' | 'user'
-
-type AgentStep = {
-  number: number
-  name: string
-}
 
 type ChatMessage = {
   id: number
   role: MessageRole
   content: string
   steps?: AgentStep[]
-}
-
-type AgentResponse = {
-  status: string
-  answer: string
-  step_count: number
-  steps: AgentStep[]
 }
 
 const examplePrompts = [
@@ -50,7 +42,9 @@ function App() {
       [messages],
   )
 
-  const sendPrompt: FormEventHandler<HTMLFormElement> = async (event) => {
+  const sendPrompt: FormEventHandler<HTMLFormElement> = async (
+      event,
+  ) => {
     event.preventDefault()
 
     const trimmedPrompt = prompt.trim()
@@ -74,36 +68,8 @@ function App() {
     setIsSending(true)
 
     try {
-      const response = await fetch('http://localhost:8000/agent/run', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: trimmedPrompt,
-        }),
-      })
-
-      const responseBody = await response.json()
-
-      if (!response.ok) {
-        const errorMessage =
-            responseBody.message ??
-            'The Healthcare AI Agent request failed.'
-
-        setMessages((currentMessages) => [
-          ...currentMessages,
-          {
-            id: nextMessageId + 1,
-            role: 'assistant',
-            content: `Error: ${errorMessage}`,
-          },
-        ])
-
-        return
-      }
-
-      const agentResponse = responseBody as AgentResponse
+      const agentResponse =
+          await runHealthcareAgent(trimmedPrompt)
 
       const assistantMessage: ChatMessage = {
         id: nextMessageId + 1,
