@@ -149,3 +149,7 @@ configure_file(
         ${CMAKE_CURRENT_BINARY_DIR}/config.json
         COPYONLY
 )
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
