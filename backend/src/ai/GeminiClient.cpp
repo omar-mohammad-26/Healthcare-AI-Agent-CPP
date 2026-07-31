@@ -148,7 +148,7 @@ Json::Value createGenerationConfig()
     Json::Value generationConfig;
 
     generationConfig["maxOutputTokens"] =
-        512;
+        1024;
 
     return generationConfig;
 }

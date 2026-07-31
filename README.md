@@ -223,6 +223,24 @@ The Agent then combines the tool results into one final response.
 
 ---
 
+## Verified Three-Tool Demonstration
+
+A successful live Agent execution used the following chain:
+
+1. `search_patient`
+2. `list_doctors`
+3. `available_slots`
+
+The Agent executed all three tools from one natural-language request and returned
+one combined final answer.
+
+The complete demonstration is documented in:
+
+- [Three-Tool Demonstration](docs/THREE_TOOL_DEMO.md)
+- [Raw JSON Evidence](docs/evidence/three-tool-demo-response.json)
+
+---
+
 ## Representative API Endpoints
 
 ### Health
@@ -331,7 +349,7 @@ POSTGRES_CONNECTIONS=2
 
 GEMINI_API_KEY=
 GOOGLE_API_KEY=
-GEMINI_MODEL=gemini-3.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com
 
 FRONTEND_PORT=3000
@@ -665,7 +683,10 @@ Healthcare-AI-Agent-CPP/
 |   `-- config.json
 |
 |-- docs/
-|   `-- DATABASE_AND_TESTING.md
+|   |-- evidence/
+|   |   `-- three-tool-demo-response.json
+|   |-- DATABASE_AND_TESTING.md
+|   `-- THREE_TOOL_DEMO.md
 |
 |-- frontend/
 |   |-- src/
