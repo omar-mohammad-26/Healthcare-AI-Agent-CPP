@@ -1,6 +1,8 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEventHandler,
 } from 'react'
@@ -20,6 +22,7 @@ type ChatMessage = {
   role: MessageRole
   content: string
   steps?: AgentStep[]
+  isError?: boolean
 }
 
 const examplePrompts = [
@@ -28,13 +31,57 @@ const examplePrompts = [
   'Show available slots for doctor Amit Patel on 2026-08-03.',
 ]
 
+const getFriendlyErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return 'An unexpected error occurred while contacting the Agent.'
+  }
+
+  const normalizedMessage = error.message.toLowerCase()
+
+  if (
+      error instanceof TypeError ||
+      normalizedMessage.includes('failed to fetch') ||
+      normalizedMessage.includes('network')
+  ) {
+    return (
+        'The backend could not be reached. Make sure the Docker services ' +
+        'are running, then try again.'
+    )
+  }
+
+  if (
+      normalizedMessage.includes('quota') ||
+      normalizedMessage.includes('429') ||
+      normalizedMessage.includes('resource exhausted')
+  ) {
+    return (
+        'The Gemini API quota is currently unavailable. Please wait briefly ' +
+        'and try the request again.'
+    )
+  }
+
+  if (
+      normalizedMessage.includes('timeout') ||
+      normalizedMessage.includes('timed out')
+  ) {
+    return (
+        'The request took too long to complete. Please try again with a ' +
+        'shorter question.'
+    )
+  }
+
+  return error.message
+}
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
       role: 'assistant',
       content:
-          'Hello! I am the Healthcare AI Agent. I can search patients, list doctors, check schedules, find available slots, book or cancel appointments, and review treatment history.',
+          'Hello! I am the Healthcare AI Agent. I can search patients, ' +
+          'list doctors, check schedules, find available slots, book or ' +
+          'cancel appointments, and review treatment history.',
     },
   ])
 
@@ -43,11 +90,14 @@ function App() {
   const [backendStatus, setBackendStatus] =
       useState<BackendStatus>('checking')
   const [backendVersion, setBackendVersion] = useState('')
+  const [backendError, setBackendError] = useState('')
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let isMounted = true
 
-    const loadBackendHealth = async () => {
+    const initializeBackendHealth = async () => {
       try {
         const health = await checkBackendHealth()
 
@@ -55,23 +105,64 @@ function App() {
           return
         }
 
-        setBackendStatus(
-            health.status === 'ok' ? 'ready' : 'offline',
-        )
-
-        setBackendVersion(health.version)
-      } catch {
-        if (isMounted) {
+        if (health.status !== 'ok') {
           setBackendStatus('offline')
           setBackendVersion('')
+          setBackendError(
+              'The backend responded, but it is not reporting a healthy status.',
+          )
+          return
         }
+
+        setBackendStatus('ready')
+        setBackendVersion(health.version)
+        setBackendError('')
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setBackendStatus('offline')
+        setBackendVersion('')
+        setBackendError(getFriendlyErrorMessage(error))
       }
     }
 
-    void loadBackendHealth()
+    void initializeBackendHealth()
 
     return () => {
       isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    })
+  }, [messages, isSending])
+
+  const retryBackendHealth = useCallback(async () => {
+    setBackendStatus('checking')
+    setBackendVersion('')
+    setBackendError('')
+
+    try {
+      const health = await checkBackendHealth()
+
+      if (health.status !== 'ok') {
+        setBackendStatus('offline')
+        setBackendError(
+            'The backend responded, but it is not reporting a healthy status.',
+        )
+        return
+      }
+
+      setBackendStatus('ready')
+      setBackendVersion(health.version)
+    } catch (error) {
+      setBackendStatus('offline')
+      setBackendError(getFriendlyErrorMessage(error))
     }
   }, [])
 
@@ -155,17 +246,24 @@ function App() {
         assistantMessage,
       ])
     } catch (error) {
-      const errorMessage =
-          error instanceof Error
-              ? error.message
-              : 'Unable to connect to the Healthcare AI Agent.'
+      const errorMessage = getFriendlyErrorMessage(error)
+
+      if (
+          error instanceof TypeError ||
+          errorMessage.includes('backend could not be reached')
+      ) {
+        setBackendStatus('offline')
+        setBackendVersion('')
+        setBackendError(errorMessage)
+      }
 
       setMessages((currentMessages) => [
         ...currentMessages,
         {
           id: nextMessageId + 1,
           role: 'assistant',
-          content: `Error: ${errorMessage}`,
+          content: errorMessage,
+          isError: true,
         },
       ])
     } finally {
@@ -319,9 +417,21 @@ function App() {
                                     message.role === 'user'
                                         ? 'message-bubble-user'
                                         : 'message-bubble-assistant'
+                                } ${
+                                    message.isError
+                                        ? 'border-danger bg-danger-subtle text-danger-emphasis'
+                                        : ''
                                 }`}
+                                role={message.isError ? 'alert' : undefined}
                             >
                               <div className="message-content">
+                                {message.isError && (
+                                    <i
+                                        className="bi bi-exclamation-triangle-fill me-2"
+                                        aria-hidden="true"
+                                    />
+                                )}
+
                                 {message.content}
                               </div>
 
@@ -359,9 +469,41 @@ function App() {
                             </div>
                           </div>
                       )}
+
+                      <div ref={messagesEndRef} />
                     </div>
 
                     <div className="card-footer bg-white border-top p-3 p-md-4">
+                      {backendStatus === 'offline' && (
+                          <div
+                              className="alert alert-danger d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3"
+                              role="alert"
+                          >
+                            <div>
+                              <div className="fw-semibold">
+                                Backend connection unavailable
+                              </div>
+
+                              <div className="small">
+                                {backendError ||
+                                    'The Healthcare AI Agent backend is offline.'}
+                              </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger flex-shrink-0"
+                                onClick={() => void retryBackendHealth()}
+                            >
+                              <i
+                                  className="bi bi-arrow-clockwise me-2"
+                                  aria-hidden="true"
+                              />
+                              Retry
+                            </button>
+                          </div>
+                      )}
+
                       <form onSubmit={sendPrompt}>
                         <label
                             htmlFor="agent-prompt"
