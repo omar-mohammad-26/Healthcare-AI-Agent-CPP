@@ -115,6 +115,8 @@ The database contains the following tables:
 - `appointments`
 - `treatments`
 
+The `users` table is reserved for a future authentication module. Registration, login, JWT authentication, and user-management endpoints are not currently exposed by the application.
+
 ### Main Relationships
 
 ```text
@@ -204,7 +206,7 @@ The Agent currently allows a maximum of five tool-execution steps per request.
 
 ```text
 Find the patient Sarah Cohen, list the doctors, then show the
-available appointment slots for doctor Amit Patel on 2026-08-03.
+available appointment slots for doctor Amit Patel on YYYY-MM-DD.
 ```
 
 This request may execute:
@@ -214,6 +216,8 @@ search_patient
 list_doctors
 available_slots
 ```
+
+Replace `YYYY-MM-DD` with a valid future date.
 
 The Agent then combines the tool results into one final response.
 
@@ -280,41 +284,86 @@ Default frontend address:
 http://localhost:3000
 ```
 
+Detailed frontend documentation is available in:
+
+```text
+frontend/README.md
+```
+
 ---
 
 ## Environment Configuration
 
-Copy the root environment example:
+Create the local environment file from the example:
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) {
+    Copy-Item .env.example .env
+}
 ```
 
-Then configure the Gemini API key inside `.env`:
+Open it:
+
+```powershell
+notepad .env
+```
+
+Configure the Gemini API key:
 
 ```env
-GEMINI_API_KEY=your_real_api_key
+GEMINI_API_KEY=your_real_private_api_key
 ```
 
-The real API key must remain only in the local `.env` file and must not be committed.
+`GEMINI_API_KEY` is preferred. `GOOGLE_API_KEY` is supported as a fallback.
 
 Important environment variables include:
 
 ```env
 BACKEND_PORT=8000
-FRONTEND_PORT=3000
 
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
 POSTGRES_EXPOSED_PORT=5433
 POSTGRES_DB=healthcare_db
 POSTGRES_USER=healthcare_user
 POSTGRES_PASSWORD=healthcare_pass
+POSTGRES_CONNECTIONS=2
 
 GEMINI_API_KEY=
+GOOGLE_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com
 
+FRONTEND_PORT=3000
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+### API Key Safety
+
+The real Gemini API key must:
+
+- Remain only in the local root `.env` file.
+- Never be committed to Git.
+- Never be copied into `.env.example`.
+- Never be added to the frontend.
+- Never be exposed through a variable beginning with `VITE_`.
+- Never be hard-coded inside C++, TypeScript, Dockerfiles, or Compose files.
+
+The root `.env` file is excluded by `.gitignore`.
+
+Verify that it is ignored:
+
+```powershell
+git check-ignore -v .env
+```
+
+Verify that it is not tracked:
+
+```powershell
+git ls-files .env
+```
+
+The second command should produce no output.
 
 ---
 
@@ -423,16 +472,35 @@ The tests verify:
 - Gemini conversation construction
 - Function-response messages
 
-Run the tests after configuring and building the backend:
+### Run Tests Inside Docker
+
+Start the development stack first:
 
 ```powershell
-ctest --test-dir build --output-on-failure
+docker compose up -d --build
+```
+
+Then run the backend tests inside the backend container:
+
+```powershell
+docker compose exec backend `
+    ctest `
+    --test-dir build/compose-debug `
+    --output-on-failure
 ```
 
 Expected result:
 
 ```text
 100% tests passed, 0 tests failed out of 3
+```
+
+### Run Tests from a Local Build
+
+When the project has been configured locally into the root `build` directory, run:
+
+```powershell
+ctest --test-dir build --output-on-failure
 ```
 
 ---
@@ -608,7 +676,8 @@ Healthcare-AI-Agent-CPP/
 |   |   `-- main.tsx
 |   |-- Dockerfile
 |   |-- package.json
-|   `-- vite.config.ts
+|   |-- vite.config.ts
+|   `-- README.md
 |
 |-- scripts/
 |   `-- api-smoke-tests.ps1
