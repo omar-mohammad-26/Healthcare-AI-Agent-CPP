@@ -15,6 +15,12 @@ export type AgentResponse = {
     steps: AgentStep[]
 }
 
+export type BackendHealth = {
+    status: string
+    service: string
+    version: string
+}
+
 type ApiErrorResponse = {
     message?: string
     code?: string
@@ -41,6 +47,43 @@ const readJsonResponse = async (
         )
     }
 }
+
+export const checkBackendHealth =
+    async (): Promise<BackendHealth> => {
+        const response = await fetch(`${apiBaseUrl}/health`, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+        })
+
+        const responseBody = await readJsonResponse(response)
+
+        if (!response.ok) {
+            throw new Error(
+                `The backend health check failed with status ${response.status}.`,
+            )
+        }
+
+        const backendHealth =
+            responseBody as Partial<BackendHealth>
+
+        if (
+            typeof backendHealth.status !== 'string' ||
+            typeof backendHealth.service !== 'string' ||
+            typeof backendHealth.version !== 'string'
+        ) {
+            throw new Error(
+                'The backend returned an incomplete health response.',
+            )
+        }
+
+        return {
+            status: backendHealth.status,
+            service: backendHealth.service,
+            version: backendHealth.version,
+        }
+    }
 
 export const runHealthcareAgent = async (
     prompt: string,
@@ -72,7 +115,8 @@ export const runHealthcareAgent = async (
         )
     }
 
-    const agentResponse = responseBody as Partial<AgentResponse>
+    const agentResponse =
+        responseBody as Partial<AgentResponse>
 
     if (
         typeof agentResponse.answer !== 'string' ||

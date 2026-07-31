@@ -1,11 +1,19 @@
-import { useMemo, useState, type FormEventHandler } from 'react'
 import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEventHandler,
+} from 'react'
+import {
+  checkBackendHealth,
   runHealthcareAgent,
   type AgentStep,
 } from './services/agentApi'
 import './App.css'
 
 type MessageRole = 'assistant' | 'user'
+
+type BackendStatus = 'checking' | 'ready' | 'offline'
 
 type ChatMessage = {
   id: number
@@ -32,6 +40,40 @@ function App() {
 
   const [prompt, setPrompt] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [backendStatus, setBackendStatus] =
+      useState<BackendStatus>('checking')
+  const [backendVersion, setBackendVersion] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadBackendHealth = async () => {
+      try {
+        const health = await checkBackendHealth()
+
+        if (!isMounted) {
+          return
+        }
+
+        setBackendStatus(
+            health.status === 'ok' ? 'ready' : 'offline',
+        )
+
+        setBackendVersion(health.version)
+      } catch {
+        if (isMounted) {
+          setBackendStatus('offline')
+          setBackendVersion('')
+        }
+      }
+    }
+
+    void loadBackendHealth()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const nextMessageId = useMemo(
       () =>
@@ -42,6 +84,32 @@ function App() {
       [messages],
   )
 
+  const backendStatusDetails = useMemo(() => {
+    if (backendStatus === 'ready') {
+      return {
+        label: backendVersion
+            ? `Backend ready · v${backendVersion}`
+            : 'Backend ready',
+        badgeClass: 'text-bg-success',
+        iconClass: 'bi-check-circle-fill',
+      }
+    }
+
+    if (backendStatus === 'offline') {
+      return {
+        label: 'Backend offline',
+        badgeClass: 'text-bg-danger',
+        iconClass: 'bi-x-circle-fill',
+      }
+    }
+
+    return {
+      label: 'Checking backend',
+      badgeClass: 'text-bg-secondary',
+      iconClass: 'bi-arrow-repeat',
+    }
+  }, [backendStatus, backendVersion])
+
   const sendPrompt: FormEventHandler<HTMLFormElement> = async (
       event,
   ) => {
@@ -49,7 +117,11 @@ function App() {
 
     const trimmedPrompt = prompt.trim()
 
-    if (!trimmedPrompt || isSending) {
+    if (
+        !trimmedPrompt ||
+        isSending ||
+        backendStatus !== 'ready'
+    ) {
       return
     }
 
@@ -128,12 +200,15 @@ function App() {
             </span>
           </span>
 
-            <span className="badge rounded-pill text-bg-success">
+            <span
+                className={`badge rounded-pill ${backendStatusDetails.badgeClass}`}
+            >
             <i
-                className="bi bi-circle-fill me-2 status-dot"
+                className={`bi ${backendStatusDetails.iconClass} me-2`}
                 aria-hidden="true"
             />
-            Backend ready
+
+              {backendStatusDetails.label}
           </span>
           </div>
         </nav>
@@ -168,11 +243,13 @@ function App() {
                                 onClick={() =>
                                     chooseExamplePrompt(examplePrompt)
                                 }
+                                disabled={backendStatus !== 'ready'}
                             >
                               <i
                                   className="bi bi-chat-left-text me-2 text-primary"
                                   aria-hidden="true"
                               />
+
                               {examplePrompt}
                             </button>
                         ))}
@@ -298,19 +375,30 @@ function App() {
                               id="agent-prompt"
                               type="text"
                               className="form-control"
-                              placeholder="Ask about patients, doctors, appointments..."
+                              placeholder={
+                                backendStatus === 'ready'
+                                    ? 'Ask about patients, doctors, appointments...'
+                                    : 'Waiting for the backend...'
+                              }
                               value={prompt}
                               onChange={(event) =>
                                   setPrompt(event.target.value)
                               }
-                              disabled={isSending}
+                              disabled={
+                                  isSending ||
+                                  backendStatus !== 'ready'
+                              }
                               autoComplete="off"
                           />
 
                           <button
                               type="submit"
                               className="btn btn-primary px-4"
-                              disabled={!prompt.trim() || isSending}
+                              disabled={
+                                  !prompt.trim() ||
+                                  isSending ||
+                                  backendStatus !== 'ready'
+                              }
                           >
                             <i
                                 className="bi bi-send-fill me-2"
