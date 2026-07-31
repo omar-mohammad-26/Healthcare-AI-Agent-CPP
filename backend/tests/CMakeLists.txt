@@ -93,3 +93,51 @@ add_test(
         NAME tool_registry_tests
         COMMAND tool_registry_tests
 )
+
+
+add_executable(
+        gemini_conversation_tests
+        GeminiConversationTests.cpp
+        ../src/ai/GeminiConversation.cpp
+        ../src/ai/GeminiConversation.h
+)
+
+target_include_directories(
+        gemini_conversation_tests
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(
+        gemini_conversation_tests
+        PRIVATE
+        Drogon::Drogon
+)
+
+target_compile_features(
+        gemini_conversation_tests
+        PRIVATE
+        cxx_std_20
+)
+
+if(MSVC)
+    target_compile_options(
+            gemini_conversation_tests
+            PRIVATE
+            /W4
+            /permissive-
+    )
+else()
+    target_compile_options(
+            gemini_conversation_tests
+            PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+endif()
+
+add_test(
+        NAME gemini_conversation_tests
+        COMMAND gemini_conversation_tests
+)
