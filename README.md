@@ -1,4 +1,4 @@
-# Healthcare AI Agent — C++
+# Healthcare AI Agent - C++
 
 A university final project for the course **AI Agents in C++**.
 
@@ -19,7 +19,7 @@ Users interact with the system through a natural-language chat interface. The AI
 ## Project Features
 
 - C++20 backend using Drogon
-- PostgreSQL database with related healthcare tables
+- PostgreSQL database with six related healthcare tables
 - More than ten meaningful REST endpoints
 - Gemini API integration
 - Eight registered Agent Function Tools
@@ -27,7 +27,11 @@ Users interact with the system through a natural-language chat interface. The AI
 - Support for multiple Gemini function calls in one turn
 - React and TypeScript chat interface
 - Bootstrap 5 responsive design
-- Live backend health status
+- Automatic chat scrolling
+- Friendly frontend error handling
+- Live backend health status and retry support
+- Automated C++ backend tests
+- PowerShell API smoke tests
 - Docker Compose development environment
 - Production Docker images for backend and frontend
 - Fictional demonstration healthcare data
@@ -89,11 +93,20 @@ React + TypeScript Frontend
 - Nginx for the production frontend
 - PostgreSQL 15
 
+### Testing
+
+- CTest
+- Custom C++ test executables
+- PowerShell API smoke tests
+- ESLint
+- TypeScript compiler
+- Vite production build verification
+
 ---
 
 ## Database Schema
 
-The database contains the following main tables:
+The database contains the following tables:
 
 - `users`
 - `departments`
@@ -114,11 +127,37 @@ Patients    1 ----- * Treatments
 Doctors     1 ----- * Treatments
 ```
 
-The database is initialized automatically from the SQL files inside:
+The database is initialized automatically from:
 
 ```text
-backend/migrations/
+backend/migrations/001_initial_schema.sql
+backend/migrations/002_seed_demo_data.sql
 ```
+
+The complete Mermaid ERD, relationship descriptions, constraints, indexes, and testing guide are available in:
+
+```text
+docs/DATABASE_AND_TESTING.md
+```
+
+---
+
+## Database Integrity
+
+The PostgreSQL schema includes:
+
+- Primary keys for every table
+- Foreign-key relationships
+- Unique email, department-name, and patient-phone constraints
+- Patient age validation from 0 through 130
+- Supported patient gender values
+- Appointment status validation
+- Required treatment diagnosis text
+- Indexes for common searches
+- Protection against conflicting active doctor appointment slots
+- Protection against conflicting active patient appointment slots
+
+Cancelled appointments do not block the same time slot.
 
 ---
 
@@ -176,7 +215,7 @@ list_doctors
 available_slots
 ```
 
-The Agent then combines all results into one final response.
+The Agent then combines the tool results into one final response.
 
 ---
 
@@ -194,21 +233,26 @@ The Agent then combines all results into one final response.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/agent/run` | Run the complete AI Agent workflow |
+| GET | `/agent/tools` | Return registered Agent tools |
+| GET | `/agent/gemini-tools` | Return Gemini function declarations |
+| POST | `/agent/tools/{name}` | Execute one Agent tool directly |
 | POST | `/agent/gemini/preview` | Preview Gemini tool selection |
-| GET | `/agent/gemini-tools` | Return the registered Gemini tool declarations |
+| POST | `/agent/run` | Run the complete Agent workflow |
 
 ### Healthcare Data
 
-The backend also contains REST routes for:
-
-- Departments
-- Doctors
-- Doctor schedules
-- Available appointment slots
-- Patients
-- Appointments
-- Treatments
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/departments` | List departments |
+| GET | `/doctors` | List doctors |
+| GET | `/doctors/{id}/schedule` | Get a doctor's schedule |
+| GET | `/doctors/{id}/available-slots` | Get available slots |
+| GET | `/patients` | List patients |
+| POST | `/patients` | Create a patient |
+| GET | `/appointments` | List appointments |
+| POST | `/appointments` | Create an appointment |
+| POST | `/appointments/{id}/cancel` | Cancel an appointment |
+| GET | `/treatments` | List treatments |
 
 ---
 
@@ -223,6 +267,9 @@ It includes:
 - Loading state while Agent tools execute
 - Final Gemini response
 - Tool-step badges
+- Automatic scrolling to new messages
+- Friendly network, timeout, and quota errors
+- Backend connection retry button
 - Live backend connection status
 - Responsive Bootstrap 5 layout
 - Fictional-data notice
@@ -315,6 +362,8 @@ Stop the development stack:
 docker compose down
 ```
 
+Do not add `-v` unless the PostgreSQL data volume should also be deleted.
+
 ---
 
 ## Production Docker Setup
@@ -352,6 +401,107 @@ docker compose -f docker-compose.prod.yml down
 
 ---
 
+## Automated Backend Tests
+
+Backend tests are stored in:
+
+```text
+backend/tests/
+```
+
+The current test suite includes:
+
+- `GeminiResponseTests.cpp`
+- `ToolRegistryTests.cpp`
+- `GeminiConversationTests.cpp`
+
+The tests verify:
+
+- Gemini response parsing
+- Multiple Gemini function calls
+- Registration of all eight Agent tools
+- Gemini conversation construction
+- Function-response messages
+
+Run the tests after configuring and building the backend:
+
+```powershell
+ctest --test-dir build --output-on-failure
+```
+
+Expected result:
+
+```text
+100% tests passed, 0 tests failed out of 3
+```
+
+---
+
+## API Smoke Tests
+
+The API smoke-test script is:
+
+```text
+scripts/api-smoke-tests.ps1
+```
+
+It verifies:
+
+1. Backend health
+2. Database health
+3. Department listing
+4. Doctor listing
+5. Patient listing
+6. Appointment listing
+7. Treatment listing
+8. Agent tool registry
+9. Gemini function declarations
+10. Frontend CORS preflight
+
+Run the script while the backend is running:
+
+```powershell
+powershell -ExecutionPolicy Bypass `
+    -File scripts/api-smoke-tests.ps1
+```
+
+Expected result:
+
+```text
+Passed: 10
+Failed: 0
+
+All API smoke tests passed.
+```
+
+These smoke tests do not send a live Gemini prompt and therefore do not consume Gemini API quota.
+
+---
+
+## Frontend Verification
+
+Install dependencies when required:
+
+```powershell
+npm --prefix frontend install
+```
+
+Run the frontend linter:
+
+```powershell
+npm --prefix frontend run lint
+```
+
+Create a production build:
+
+```powershell
+npm --prefix frontend run build
+```
+
+Both commands must finish without errors.
+
+---
+
 ## Manual Verification
 
 ### Backend Health
@@ -372,17 +522,26 @@ Expected response:
 }
 ```
 
-### Frontend Build
+### Database Health
 
 ```powershell
-cd frontend
-npm install
-npm run build
-npm run lint
-cd ..
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://localhost:8000/health/database"
 ```
 
-### Agent Request
+### Agent Tool Registry
+
+```powershell
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://localhost:8000/agent/tools" |
+ConvertTo-Json -Depth 20
+```
+
+The response should report eight registered tools.
+
+### Live Agent Request
 
 ```powershell
 $body = @{
@@ -397,7 +556,13 @@ Invoke-RestMethod `
 ConvertTo-Json -Depth 20
 ```
 
-A live Agent request requires a configured Gemini API key and available Gemini quota.
+A live Agent request requires:
+
+- A configured Gemini API key
+- Internet access
+- Available Gemini API quota
+
+External Gemini quota problems do not affect the local backend tests or API smoke tests.
 
 ---
 
@@ -408,9 +573,12 @@ Healthcare-AI-Agent-CPP/
 |
 |-- backend/
 |   |-- migrations/
+|   |   |-- 001_initial_schema.sql
+|   |   `-- 002_seed_demo_data.sql
+|   |
 |   |-- src/
 |   |   |-- agent/
-|   |   |   |-- tools/
+|   |   |   `-- tools/
 |   |   |-- ai/
 |   |   |-- config/
 |   |   |-- controllers/
@@ -418,18 +586,32 @@ Healthcare-AI-Agent-CPP/
 |   |   |-- repositories/
 |   |   |-- services/
 |   |   `-- main.cpp
+|   |
+|   |-- tests/
+|   |   |-- GeminiConversationTests.cpp
+|   |   |-- GeminiResponseTests.cpp
+|   |   |-- ToolRegistryTests.cpp
+|   |   `-- CMakeLists.txt
+|   |
 |   |-- CMakeLists.txt
 |   `-- config.json
+|
+|-- docs/
+|   `-- DATABASE_AND_TESTING.md
 |
 |-- frontend/
 |   |-- src/
 |   |   |-- services/
+|   |   |   `-- agentApi.ts
 |   |   |-- App.tsx
 |   |   |-- App.css
 |   |   `-- main.tsx
 |   |-- Dockerfile
 |   |-- package.json
 |   `-- vite.config.ts
+|
+|-- scripts/
+|   `-- api-smoke-tests.ps1
 |
 |-- CMakeLists.txt
 |-- Dockerfile
@@ -438,6 +620,16 @@ Healthcare-AI-Agent-CPP/
 |-- docker-compose.prod.yml
 |-- .env.example
 `-- README.md
+```
+
+---
+
+## Detailed Documentation
+
+The full database ERD, constraints, relationships, automated tests, smoke tests, and final verification checklist are documented in:
+
+```text
+docs/DATABASE_AND_TESTING.md
 ```
 
 ---
@@ -456,6 +648,7 @@ The project currently includes:
 
 - Functional Drogon REST backend
 - PostgreSQL integration
+- Six related database tables
 - Fictional seeded healthcare data
 - Eight Agent Function Tools
 - Gemini tool declarations
@@ -463,6 +656,11 @@ The project currently includes:
 - Natural-language final responses
 - React and TypeScript chat frontend
 - Bootstrap 5 interface
+- Automatic chat scrolling
+- Friendly frontend errors and backend retry support
 - Backend health monitoring
+- Three automated backend test executables
+- Ten API smoke tests
 - Development Docker Compose stack
 - Production Docker deployment
+- Database ERD and testing documentation
