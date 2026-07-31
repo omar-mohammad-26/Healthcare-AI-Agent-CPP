@@ -1,6 +1,6 @@
 # Healthcare AI Agent - C++
 
-A university final project for the course **AI Agents in C++**.
+A  final project for the course **AI Agents in C++**.
 
 The project is a clinic and hospital management system built with **C++20**, **Drogon**, **PostgreSQL**, **Gemini**, and a **React + TypeScript + Bootstrap 5** frontend.
 
@@ -10,9 +10,9 @@ Users interact with the system through a natural-language chat interface. The AI
 
 ## Team
 
-- Omar Mohammad
-- Nadeen
-- Hisham
+- **Nadeen Haj Yahia** — 214235921
+- **Omar Mohammad** — 212441216
+- **Hisham Herbawi** — 325009983
 
 ---
 
